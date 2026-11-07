@@ -1,8 +1,8 @@
-if _G.RedstoneUltimateLoaded then
+if _G.RedstoneHubLoaded then
     if not (getgenv and getgenv().ForceReload) then return end
     getgenv().ForceReload = false
 end
-_G.RedstoneUltimateLoaded = true
+_G.RedstoneHubLoaded = true
 
 repeat task.wait() until game:IsLoaded() and game:GetService("Players").LocalPlayer
 
@@ -12,22 +12,47 @@ local RS = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 local HttpService = game:GetService("HttpService")
 local VirtualInputManager = game:GetService("VirtualInputManager")
-local UserInputService = game:GetService("UserInputService")
 local LocalPlayer = Players.LocalPlayer
-local CommF = RS:FindFirstChild("Remotes") and RS:FindFirstChild("CommF_")
+local CommF = RS:FindFirstChild("Remotes") and RS.Remotes:FindFirstChild("CommF_")
 
-local ConfigFolder = "RedstoneUltimate"
-if not isfolder(ConfigFolder) then makefolder(ConfigFolder) end
+local Theme = {
+    Base = Color3.fromRGB(15, 2, 5),
+    Panel = Color3.fromRGB(30, 5, 10),
+    PanelLite = Color3.fromRGB(45, 10, 15),
+    Accent = Color3.fromRGB(255, 30, 80),
+    Text = Color3.fromRGB(255, 240, 245),
+    Muted = Color3.fromRGB(180, 130, 150),
+    Stroke = Color3.fromRGB(255, 60, 100)
+}
+
+local Config = {
+    Mode = "Capitán",
+    AutoLeviathanFull = false,
+    SilentAim = true,
+    SelectWeapon = "Sword",
+    SkillMelee = {"Z", "X", "C"},
+    SkillSword = {"Z", "X"},
+    SkillFruit = {"X"},
+    SkillGun = {"Z", "X"},
+    AutoBuso = true,
+    FastAttack = false,
+    DragonGunLeviathan = false,
+    BoatHeight = 150,
+    BoatSpeed = 250,
+    PlayerTweenSpeed = 300,
+    HorizontalTabs = true
+}
 
 local Character = LocalPlayer.Character
 local HD = Character and Character:FindFirstChild("Humanoid")
 local HRP = Character and Character:FindFirstChild("HumanoidRootPart")
 
-local Tweening, TpActive, CurrentTween = false, false, nil
+local CurrentTween, Tweening, TpActive = nil, false, false
 local HoldCFrame, LiveHoldFn = nil, nil
 local NoclipOn, LastNoclipApply = false, 0
 local AttackModel, AttackStandFn, FightTarget = nil, nil, nil
 local SkillCoolDown = false
+local StatusText = "Waiting..."
 
 local function GetCharacterParts()
     local char = LocalPlayer.Character
@@ -79,14 +104,6 @@ local function StandUpFromSeat(seat, hum, hrp)
             local p1 = Weld and Weld.Part1
             if Weld and ((not p1) or (p1:IsA("BasePart") and char and p1:IsDescendantOf(char))) then Weld:Destroy() end
         end)
-        pcall(function()
-            for _, d in ipairs(seat:GetDescendants()) do
-                if d:IsA("Weld") or d:IsA("WeldConstraint") then
-                    local p0, p1 = d.Part0, d.Part1
-                    if char and ((p0 and p0:IsDescendantOf(char)) or (p1 and p1:IsDescendantOf(char))) then d:Destroy() end
-                end
-            end
-        end)
     end
     pcall(function()
         hum.Sit = false
@@ -105,8 +122,7 @@ local function StandUpFromSeat(seat, hum, hrp)
     return true
 end
 
-local function _tp(targetPos, abortCheck, allowNavigationOwner)
-    if _G.StopTween then return false end
+local function _tp(targetPos, abortCheck)
     local startChar = LocalPlayer.Character
     local myHRP = select(2, GetCharacterParts())
     if not myHRP then return false end
@@ -122,8 +138,6 @@ local function _tp(targetPos, abortCheck, allowNavigationOwner)
     else return false end
     
     if targetCFrame.Position.Y < 0 then return false end
-    HoldCFrame = nil
-    LiveHoldFn = nil
     
     local _, _, humS = GetCharacterParts()
     if humS and (humS.Sit or humS.SeatPart ~= nil) then
@@ -135,7 +149,7 @@ local function _tp(targetPos, abortCheck, allowNavigationOwner)
     part.CFrame = myHRP.CFrame
     NoClip(true)
     
-    local tweenSpeed = 300
+    local tweenSpeed = Config.PlayerTweenSpeed
     if CurrentTween then pcall(function() CurrentTween:Cancel() end) CurrentTween = nil end
 
     local tween = nil
@@ -212,15 +226,6 @@ local function _tp(targetPos, abortCheck, allowNavigationOwner)
     return not aborted
 end
 
-local function StopTweenAll()
-    _G.StopTween = true
-    if CurrentTween then pcall(function() CurrentTween:Cancel() end) CurrentTween = nil end
-    Tweening, TpActive = false, false
-    NoClip(false)
-    HoldCFrame, LiveHoldFn = nil, nil
-    task.defer(function() task.wait(0.1) _G.StopTween = false end)
-end
-
 local function Unseat()
     HoldCFrame, LiveHoldFn = nil, nil
     for _ = 1, 3 do
@@ -232,433 +237,567 @@ local function Unseat()
     return false
 end
 
-local function BoardSeat(seat, timeout)
-    timeout = timeout or 15
-    if not seat or not seat.Parent then return false end
-    local Deadline = os.clock() + timeout
-    while os.clock() < Deadline do
-        local _, hrp, hum = GetCharacterParts()
-        if hum and hum.SeatPart == seat then return true end
-        if hum and (hum.Sit or hum.SeatPart ~= nil) then Unseat() task.wait(0.3) end
-        if hrp then
-            _tp(seat.CFrame, function()
-                local _, _, humNow = GetCharacterParts()
-                return humNow ~= nil and humNow.SeatPart ~= nil
-            end)
-        end
-        task.wait(0.2)
+local function Haki_Auto()
+    if not Config.AutoBuso then return end
+    if Character and HRP then
+        if not Character:FindFirstChild("HasBuso") then pcall(function() CommF:InvokeServer("Buso") end) end
     end
-    return false
 end
 
-local SeaAPI = {}
-do
-    local function Sea_MobStillAlive(Mob)
-        if not Mob or not Mob.Parent then return false end
-        local Health = Mob:FindFirstChild("Health")
-        if Health and Health:IsA("ValueBase") and Health.Value <= 0 then return false end
-        local Humanoid = Mob:FindFirstChildOfClass("Humanoid")
-        if Humanoid and Humanoid.Health <= 0 then return false end
-        return true
+local function Equip_Auto(Tool)
+    if not Character or not HRP or not HD then return end
+    if HD.Health > 0 and LocalPlayer:FindFirstChild("Backpack") then
+        if Tool == "Melee" or Tool == "Sword" or Tool == "Gun" or Tool == "Blox Fruit" then
+            for i, v in pairs(LocalPlayer.Backpack:GetChildren()) do
+                if v.ToolTip == Tool then HD:EquipTool(v) break end
+            end
+        else
+            for i, v in pairs(LocalPlayer.Backpack:GetChildren()) do
+                if v.Name == Tool then HD:EquipTool(v) break end
+            end
+        end
     end
+end
 
-    local function Sea_EventRoot(Mob)
-        if not Mob then return nil end
-        return Mob:FindFirstChild("HumanoidRootPart") or Mob:FindFirstChild("RootPart") or Mob.PrimaryPart or Mob:FindFirstChildWhichIsA("BasePart", true)
-    end
+local function Attack_Auto()
+    if not Character or not HRP or not HD then return end
+    local tool = Character:FindFirstChildOfClass("Tool")
+    if not tool then return end
+    local WT = tool:GetAttribute("WeaponType")
+    if WT ~= "Melee" and WT ~= "Sword" then return end
+    
+    local Net = RS:FindFirstChild("Modules") and RS.Modules:FindFirstChild("Net")
+    if not Net then return end
+    local RegisterAttack = Net:FindFirstChild("RE/RegisterAttack")
+    local RegisterHit = Net:FindFirstChild("RE/RegisterHit")
+    if not RegisterAttack or not RegisterHit then return end
 
-    local function Sea_Mob(MaxDistance)
-        MaxDistance = MaxDistance or 4000
-        local _, hrp = GetCharacterParts()
-        if not hrp then return nil end
-        local MobList = {
-            {Name = "Terrorshark", Folder = workspace:FindFirstChild("Enemies")},
-            {Name = "Piranha", Folder = workspace:FindFirstChild("Enemies")},
-            {Name = "Shark", Folder = workspace:FindFirstChild("Enemies")},
-            {Name = "FishBoat", Folder = workspace:FindFirstChild("Enemies")},
-            {Name = "PirateBrigade", Folder = workspace:FindFirstChild("Enemies")},
-            {Name = "SeaBeast1", Folder = workspace:FindFirstChild("SeaBeasts")},
-        }
-        local Best, BestRoot, BestDist = nil, nil, MaxDistance
-        for _, Data in ipairs(MobList) do
-            if Data.Folder then
-                for _, Mob in ipairs(Data.Folder:GetChildren()) do
-                    if Mob.Name == Data.Name and Sea_MobStillAlive(Mob) then
-                        local Root = Sea_EventRoot(Mob)
-                        if Root then
-                            local Dist = (Root.Position - hrp.Position).Magnitude
-                            if Dist < BestDist then Best, BestRoot, BestDist = Mob, Root, Dist end
+    local hitList = {}
+    for _, folder in pairs({workspace:FindFirstChild("Enemies"), workspace:FindFirstChild("Characters")}) do
+        if folder then
+            for _, model in pairs(folder:GetChildren()) do
+                if model ~= Character then
+                    local root = model:FindFirstChild("HumanoidRootPart")
+                    local hum = model:FindFirstChild("Humanoid")
+                    if root and hum and hum.Health > 0 and (root.Position - HRP.Position).Magnitude <= 60 then
+                        for _, part in pairs(model:GetChildren()) do
+                            if part:IsA("BasePart") then table.insert(hitList, {model, part}) end
                         end
                     end
                 end
             end
         end
-        return Best, BestRoot
     end
-
-    local function Leviathan_Find()
-        local SeaBeasts = workspace:FindFirstChild("SeaBeasts")
-        if not SeaBeasts then return nil, nil end
-        for _, model in ipairs(SeaBeasts:GetChildren()) do
-            if model.Name == "Leviathan Segment" and Sea_MobStillAlive(model) then
-                return model, Sea_EventRoot(model)
-            end
-        end
-        local lev = SeaBeasts:FindFirstChild("Leviathan")
-        if lev and Sea_MobStillAlive(lev) then return lev, Sea_EventRoot(lev) end
-        return nil, nil
-    end
-
-    local function FightSeaEvent(Mob, Root)
-        local start = os.clock()
-        while _G.AutoSeaEvent and os.clock() - start < 600 do
-            if not Mob or not Mob.Parent or not Sea_MobStillAlive(Mob) then break end
-            local _, hrp = GetCharacterParts()
-            if not hrp then break end
-            local targetPos = Root.Position + Vector3.new(0, 30, 0)
-            _tp(targetPos)
-            local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-            if hum then
-                if LocalPlayer.Backpack:FindFirstChild("Dragonstorm") then
-                    hum:EquipTool(LocalPlayer.Backpack.Dragonstorm)
-                else
-                    hum:EquipTool(LocalPlayer.Backpack:FindFirstChildWhichIsA("Tool"))
-                end
-            end
-            local args = {[1] = "RegisterAttack"}
-            pcall(function() RS.Modules.Net["RE/RegisterAttack"]:FireServer() end)
-            pcall(function() RS.Modules.Net["RE/RegisterHit"]:FireServer(Root, {{Mob, Root}}) end)
-            task.wait(0.1)
-        end
-    end
-
-    SeaAPI.Sea_Mob = Sea_Mob
-    SeaAPI.Leviathan_Find = Leviathan_Find
-    SeaAPI.FightSeaEvent = FightSeaEvent
-end
-
-local function DoAutoFarm()
-    task.spawn(function()
-        while _G.AutoFarm do
-            task.wait(0.1)
-            if not LocalPlayer.Character then break end
-            local _, hrp = GetCharacterParts()
-            if not hrp then break end
-            
-            if _G.FarmMode == "Level" then
-                local mob = SeaAPI.Sea_Mob(1000)
-                if mob then
-                    local root = mob:FindFirstChild("HumanoidRootPart")
-                    if root then
-                        _tp(root.Position + Vector3.new(0, 30, 0))
-                        local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-                        if hum then hum:EquipTool(LocalPlayer.Backpack:FindFirstChildWhichIsA("Tool")) end
-                        pcall(function() RS.Modules.Net["RE/RegisterAttack"]:FireServer() end)
-                        pcall(function() RS.Modules.Net["RE/RegisterHit"]:FireServer(root, {{mob, root}}) end)
-                    end
-                end
-            elseif _G.FarmMode == "Fruit" then
-                for _, v in pairs(workspace:GetChildren()) do
-                    if v:IsA("Tool") and string.find(v.Name, "Fruit") then
-                        if v:FindFirstChild("Handle") then
-                            _tp(v.Handle.CFrame)
-                            task.wait(1)
-                        end
-                    end
-                end
-            end
-        end
-    end)
-end
-
-local function GetSeaName()
-    local placeId = game.PlaceId
-    if placeId == 2753915549 or placeId == 4442272183 then return "First Sea" end
-    if placeId == 4442272183 or placeId == 79091703265657 then return "Second Sea" end
-    if placeId == 7449423635 or placeId == 100117331123089 then return "Third Sea" end
-    return "Unknown"
-end
-
-local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
-local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
-local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
-
-local Themes = {
-    ["Midnight"] = { Accent = Color3.fromRGB(150, 60, 255), Base = Color3.fromRGB(20, 20, 25), Text = Color3.fromRGB(240, 240, 245) },
-    ["Rose Gold"] = { Accent = Color3.fromRGB(255, 150, 180), Base = Color3.fromRGB(40, 25, 30), Text = Color3.fromRGB(255, 240, 245) },
-    ["Ocean"] = { Accent = Color3.fromRGB(0, 180, 255), Base = Color3.fromRGB(15, 25, 35), Text = Color3.fromRGB(230, 245, 255) },
-    ["Emerald"] = { Accent = Color3.fromRGB(50, 220, 120), Base = Color3.fromRGB(20, 30, 25), Text = Color3.fromRGB(235, 255, 240) },
-    ["Crimson"] = { Accent = Color3.fromRGB(255, 60, 60), Base = Color3.fromRGB(30, 15, 15), Text = Color3.fromRGB(255, 235, 235) },
-    ["Amethyst"] = { Accent = Color3.fromRGB(180, 80, 255), Base = Color3.fromRGB(25, 15, 35), Text = Color3.fromRGB(245, 235, 255) },
-    ["Sunset"] = { Accent = Color3.fromRGB(255, 120, 50), Base = Color3.fromRGB(35, 20, 15), Text = Color3.fromRGB(255, 240, 230) },
-    ["Matrix"] = { Accent = Color3.fromRGB(0, 255, 0), Base = Color3.fromRGB(10, 10, 10), Text = Color3.fromRGB(200, 255, 200) },
-    ["Ghost"] = { Accent = Color3.fromRGB(200, 200, 200), Base = Color3.fromRGB(30, 30, 30), Text = Color3.fromRGB(255, 255, 255) }
-}
-
-local Window = Fluent:CreateWindow({
-    Title = "Redstone Ultimate",
-    SubTitle = "All-in-One Hub",
-    TabWidth = 160,
-    Size = UDim2.fromOffset(620, 520),
-    Acrylic = false,
-    Theme = "Dark",
-    MinimizeKey = Enum.KeyCode.G,
-})
-
-local ActiveTheme = "Midnight"
-local function ApplyTheme(name)
-    ActiveTheme = name
-    local T = Themes[name]
-    if not T then return end
-    if Window.Root then
-        Window.Root.BackgroundColor3 = T.Base
-        for _, obj in ipairs(Window.Root:GetDescendants()) do
-            if obj:IsA("TextLabel") or obj:IsA("TextButton") then
-                obj.TextColor3 = T.Text
-            elseif obj:IsA("Frame") and obj.Name ~= "Bar" then
-                if obj.BackgroundColor3 ~= Color3.new(1,1,1) then
-                    obj.BackgroundColor3 = T.Base:Lerp(Color3.new(0,0,0), 0.2)
-                end
-            elseif obj:IsA("UIStroke") then
-                obj.Color = T.Accent
-            end
-        end
-    end
-end
-
-local lastTitleTap = 0
-local lastScreenTap = 0
-local IsHidden = false
-
-local function SetupDoubleTap()
-    if Window.Root and Window.Root:FindFirstChild("Title") then
-        Window.Root.Title.InputBegan:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                if tick() - lastTitleTap < 0.4 then
-                    Window.Root.Visible = false
-                    IsHidden = true
-                end
-                lastTitleTap = tick()
+    
+    if #hitList > 0 then
+        pcall(function()
+            RegisterAttack:FireServer()
+            local head = hitList[1][1]:FindFirstChild("Head")
+            if head then
+                RegisterHit:FireServer(head, hitList, {}, tostring(LocalPlayer.UserId):sub(2, 4) .. tostring(coroutine.running()):sub(11, 15))
             end
         end)
     end
 end
 
-UserInputService.InputBegan:Connect(function(input, gp)
-    if gp then return end
-    if IsHidden and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
-        if tick() - lastScreenTap < 0.4 then
-            Window.Root.Visible = true
-            IsHidden = false
+local function CoolDown_Auto()
+    if SkillCoolDown or not Config.AutoLeviathanFull then return end
+    SkillCoolDown = true
+    pcall(function()
+        local skillsUI = LocalPlayer.PlayerGui.Main.Skills
+        for _, weapon in pairs(skillsUI:GetChildren()) do
+            for _, v in pairs(weapon:GetChildren()) do
+                if table.find({"Z", "X", "C", "V", "F"}, v.Name) then
+                    local cooldown = v:FindFirstChild("Cooldown")
+                    if cooldown and cooldown.Size == UDim2.new(0, 0, 1, -1) then
+                        VirtualInputManager:SendKeyEvent(true, v.Name:upper(), false, game)
+                        task.wait(0.1)
+                        VirtualInputManager:SendKeyEvent(false, v.Name:upper(), false, game)
+                    end
+                end
+            end
         end
-        lastScreenTap = tick()
+    end)
+    SkillCoolDown = false
+end
+
+local function Leviathan_Find()
+    local SeaBeasts = workspace:FindFirstChild("SeaBeasts")
+    if not SeaBeasts then return nil, nil end
+    for _, model in pairs(SeaBeasts:GetChildren()) do
+        if model.Name == "Leviathan Segment" or model.Name == "Leviathan" then
+            local root = model:FindFirstChild("HumanoidRootPart") or model:FindFirstChildWhichIsA("BasePart")
+            if root then return model, root end
+        end
+    end
+    return nil, nil
+end
+
+local function FightLeviathan()
+    task.spawn(function()
+        while Config.AutoLeviathanFull do
+            task.wait(0.1)
+            local model, root = Leviathan_Find()
+            if model and root then
+                StatusText = "Attacking: " .. model.Name
+                _tp(root.Position + Vector3.new(0, 75, 0))
+                if not (Character and Character:FindFirstChildOfClass("Humanoid") and Character.Humanoid.Sit) then
+                    Equip_Auto(Config.SelectWeapon)
+                    pcall(CoolDown_Auto)
+                    if Config.FastAttack then pcall(Attack_Auto) end
+                end
+                Haki_Auto()
+            else
+                StatusText = "Searching for Leviathan..."
+                task.wait(1)
+            end
+        end
+    end)
+end
+
+local function UpdateCharacter()
+    Character = LocalPlayer.Character
+    HD = Character and Character:FindFirstChild("Humanoid")
+    HRP = Character and Character:FindFirstChild("HumanoidRootPart")
+end
+
+LocalPlayer.CharacterAdded:Connect(function()
+    task.wait(1)
+    UpdateCharacter()
+    Haki_Auto()
+end)
+
+local SilentAimConnection = nil
+local function ToggleSilentAim(state)
+    if SilentAimConnection then SilentAimConnection:Disconnect() end
+    if not state then return end
+    pcall(function()
+        local mt = getrawmetatable(game)
+        local oldNamecall = mt.__namecall
+        setreadonly(mt, false)
+        SilentAimConnection = mt.__namecall = newcclosure(function(self, ...)
+            local method = getnamecallmethod()
+            if method == "FireServer" or method == "InvokeServer" then
+                if Config.AutoLeviathanFull and Config.SilentAim and (tostring(self) == "RemoteEvent" or tostring(self) == "CommE") then
+                    local model = Leviathan_Find()
+                    if model then
+                        local target = model:FindFirstChild("HumanoidRootPart")
+                        if target then
+                            local args = {...}
+                            for i, v in pairs(args) do
+                                if typeof(v) == "Vector3" then args[i] = target.Position end
+                            end
+                            return oldNamecall(self, unpack(args))
+                        end
+                    end
+                end
+            end
+            return oldNamecall(self, ...)
+        end)
+        setreadonly(mt, true)
+    end)
+end
+
+ToggleSilentAim(true)
+
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "RedstoneUI"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.IgnoreGuiInset = true
+ScreenGui.Parent = game:GetService("CoreGui")
+
+local function Create(className, props, parent)
+    local inst = Instance.new(className)
+    for k, v in pairs(props) do inst[k] = v end
+    inst.Parent = parent
+    return inst
+end
+
+local MainFrame = Create("Frame", {
+    Size = UDim2.new(0, 680, 0, 440),
+    Position = UDim2.new(0.5, -340, 0.5, -220),
+    BackgroundColor3 = Theme.Base,
+    BorderSizePixel = 0,
+}, ScreenGui)
+
+Create("UICorner", {CornerRadius = UDim.new(0, 12)}, MainFrame)
+
+local Stroke = Create("UIStroke", {
+    Thickness = 1.5,
+    Color = Theme.Stroke,
+    Transparency = 0.3,
+}, MainFrame)
+
+local Gradient = Create("UIGradient", {
+    Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Theme.Base),
+        ColorSequenceKeypoint.new(1, Theme.Panel),
+    }),
+    Rotation = 45,
+}, MainFrame)
+
+local TopBar = Create("Frame", {
+    Size = UDim2.new(1, 0, 0, 50),
+    BackgroundTransparency = 1,
+}, MainFrame)
+
+local Logo = Create("Frame", {
+    Size = UDim2.new(0, 30, 0, 30),
+    Position = UDim2.new(0, 15, 0.5, -15),
+    BackgroundColor3 = Theme.Accent,
+}, TopBar)
+Create("UICorner", {CornerRadius = UDim.new(0, 8)}, Logo)
+Create("TextLabel", {
+    Size = UDim2.new(1, 0, 1, 0),
+    BackgroundTransparency = 1,
+    Text = "R",
+    TextColor3 = Theme.Text,
+    Font = Enum.Font.GothamBold,
+    TextSize = 16,
+}, Logo)
+
+local Title = Create("TextLabel", {
+    Size = UDim2.new(0, 200, 0, 16),
+    Position = UDim2.new(0, 55, 0, 10),
+    BackgroundTransparency = 1,
+    Text = "REDSTONE HUB",
+    TextColor3 = Theme.Accent,
+    Font = Enum.Font.GothamBold,
+    TextSize = 14,
+    TextXAlignment = Enum.TextXAlignment.Left,
+}, TopBar)
+
+local SubTitle = Create("TextLabel", {
+    Size = UDim2.new(0, 200, 0, 14),
+    Position = UDim2.new(0, 55, 0, 26),
+    BackgroundTransparency = 1,
+    Text = "Made by He",
+    TextColor3 = Theme.Muted,
+    Font = Enum.Font.Gotham,
+    TextSize = 11,
+    TextXAlignment = Enum.TextXAlignment.Left,
+}, TopBar)
+
+local LayoutBtn = Create("TextButton", {
+    Size = UDim2.new(0, 30, 0, 30),
+    Position = UDim2.new(1, -90, 0.5, -15),
+    BackgroundColor3 = Theme.PanelLite,
+    Text = "↔",
+    TextColor3 = Theme.Text,
+    Font = Enum.Font.GothamBold,
+    TextSize = 16,
+}, TopBar)
+Create("UICorner", {CornerRadius = UDim.new(0, 6)}, LayoutBtn)
+
+local CloseBtn = Create("TextButton", {
+    Size = UDim2.new(0, 30, 0, 30),
+    Position = UDim2.new(1, -50, 0.5, -15),
+    BackgroundColor3 = Theme.PanelLite,
+    Text = "X",
+    TextColor3 = Theme.Text,
+    Font = Enum.Font.GothamBold,
+    TextSize = 12,
+}, TopBar)
+Create("UICorner", {CornerRadius = UDim.new(0, 6)}, CloseBtn)
+
+local TabContainer = Create("Frame", {
+    Size = UDim2.new(1, -30, 0, 35),
+    Position = UDim2.new(0, 15, 0, 55),
+    BackgroundColor3 = Theme.Panel,
+    BackgroundTransparency = 0.5,
+}, MainFrame)
+Create("UICorner", {CornerRadius = UDim.new(0, 8)}, TabContainer)
+Create("UIListLayout", {FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 5), HorizontalAlignment = Enum.HorizontalAlignment.Center}, TabContainer)
+
+local ContentContainer = Create("Frame", {
+    Size = UDim2.new(1, -30, 1, -105),
+    Position = UDim2.new(0, 15, 0, 95),
+    BackgroundTransparency = 1,
+}, MainFrame)
+
+local Pages = {}
+local CurrentPage = nil
+local TabButtons = {}
+
+local function SwitchLayout()
+    Config.HorizontalTabs = not Config.HorizontalTabs
+    if Config.HorizontalTabs then
+        MainFrame.Size = UDim2.new(0, 680, 0, 440)
+        TabContainer.Size = UDim2.new(1, -30, 0, 35)
+        TabContainer.Position = UDim2.new(0, 15, 0, 55)
+        TabContainer.UIListLayout.FillDirection = Enum.FillDirection.Horizontal
+        ContentContainer.Size = UDim2.new(1, -30, 1, -105)
+        ContentContainer.Position = UDim2.new(0, 15, 0, 95)
+        LayoutBtn.Text = "↔"
+    else
+        MainFrame.Size = UDim2.new(0, 500, 0, 550)
+        TabContainer.Size = UDim2.new(0, 100, 1, -90)
+        TabContainer.Position = UDim2.new(0, 10, 0, 55)
+        TabContainer.UIListLayout.FillDirection = Enum.FillDirection.Vertical
+        ContentContainer.Size = UDim2.new(1, -130, 1, -65)
+        ContentContainer.Position = UDim2.new(0, 120, 0, 55)
+        LayoutBtn.Text = "↕"
+    end
+    MainFrame.Position = UDim2.new(0.5, -MainFrame.AbsoluteSize.X/2, 0.5, -MainFrame.AbsoluteSize.Y/2)
+end
+
+LayoutBtn.MouseButton1Click:Connect(SwitchLayout)
+
+local function CreatePage(name)
+    local page = Create("Frame", {
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundTransparency = 1,
+        Visible = false,
+    }, ContentContainer)
+    
+    local tabBtn = Create("TextButton", {
+        Size = UDim2.new(0, 85, 1, -10),
+        BackgroundColor3 = Theme.Base,
+        BackgroundTransparency = 0.5,
+        Text = name,
+        TextColor3 = Theme.Muted,
+        Font = Enum.Font.GothamBold,
+        TextSize = 12,
+    }, TabContainer)
+    Create("UICorner", {CornerRadius = UDim.new(0, 6)}, tabBtn)
+    
+    tabBtn.MouseButton1Click:Connect(function()
+        if CurrentPage then CurrentPage.Visible = false end
+        for _, btn in pairs(TabButtons) do
+            btn.BackgroundTransparency = 0.5
+            btn.TextColor3 = Theme.Muted
+        end
+        page.Visible = true
+        tabBtn.BackgroundTransparency = 0
+        tabBtn.TextColor3 = Theme.Accent
+        CurrentPage = page
+    end)
+    
+    table.insert(TabButtons, tabBtn)
+    Pages[name] = page
+    
+    if not CurrentPage then
+        page.Visible = true
+        tabBtn.BackgroundTransparency = 0
+        tabBtn.TextColor3 = Theme.Accent
+        CurrentPage = page
+    end
+    return page
+end
+
+local function CreateSection(parent, title)
+    local sec = Create("Frame", {
+        Size = UDim2.new(1, 0, 0, 0),
+        AutomaticSize = Enum.AutomaticSize.Y,
+        BackgroundColor3 = Theme.Panel,
+        BackgroundTransparency = 0.2,
+        Position = UDim2.new(0, 0, 0, #parent:GetChildren() * 10),
+    }, parent)
+    Create("UICorner", {CornerRadius = UDim.new(0, 8)}, sec)
+    local pad = Create("UIPadding", {PaddingTop = UDim.new(0, 10), PaddingBottom = UDim.new(0, 10), PaddingLeft = UDim.new(0, 10), PaddingRight = UDim.new(0, 10)}, sec)
+    local list = Create("UIListLayout", {Padding = UDim.new(0, 8)}, sec)
+    
+    local header = Create("Frame", {
+        Size = UDim2.new(1, 0, 0, 20),
+        BackgroundTransparency = 1,
+    }, sec)
+    Create("Frame", {Size = UDim2.new(0, 3, 1, 0), BackgroundColor3 = Theme.Accent}, header)
+    Create("TextLabel", {
+        Size = UDim2.new(1, -10, 1, 0),
+        Position = UDim2.new(0, 8, 0, 0),
+        BackgroundTransparency = 1,
+        Text = string.upper(title),
+        TextColor3 = Theme.Text,
+        Font = Enum.Font.GothamBold,
+        TextSize = 12,
+        TextXAlignment = Enum.TextXAlignment.Left,
+    }, header)
+    return sec
+end
+
+local function CreateToggle(parent, text, default, callback)
+    local frame = Create("Frame", {
+        Size = UDim2.new(1, 0, 0, 30),
+        BackgroundColor3 = Theme.PanelLite,
+        BackgroundTransparency = 0.5,
+    }, parent)
+    Create("UICorner", {CornerRadius = UDim.new(0, 6)}, frame)
+    
+    local label = Create("TextLabel", {
+        Size = UDim2.new(1, -50, 1, 0),
+        Position = UDim2.new(0, 10, 0, 0),
+        BackgroundTransparency = 1,
+        Text = text,
+        TextColor3 = Theme.Text,
+        Font = Enum.Font.Gotham,
+        TextSize = 12,
+        TextXAlignment = Enum.TextXAlignment.Left,
+    }, frame)
+    
+    local toggleBtn = Create("TextButton", {
+        Size = UDim2.new(0, 36, 0, 18),
+        Position = UDim2.new(1, -46, 0.5, -9),
+        BackgroundColor3 = default and Theme.Accent or Theme.Panel,
+        Text = "",
+    }, frame)
+    Create("UICorner", {CornerRadius = UDim.new(1, 0)}, toggleBtn)
+    
+    local knob = Create("Frame", {
+        Size = UDim2.new(0, 14, 0, 14),
+        Position = default and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7),
+        BackgroundColor3 = Theme.Text,
+    }, toggleBtn)
+    Create("UICorner", {CornerRadius = UDim.new(1, 0)}, knob)
+    
+    local state = default
+    toggleBtn.MouseButton1Click:Connect(function()
+        state = not state
+        TweenService:Create(knob, TweenInfo.new(0.15), {
+            Position = state and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7)
+        }):Play()
+        TweenService:Create(toggleBtn, TweenInfo.new(0.15), {
+            BackgroundColor3 = state and Theme.Accent or Theme.Panel
+        }):Play()
+        if callback then callback(state) end
+    end)
+    return frame
+end
+
+local function CreateButton(parent, text, callback)
+    local btn = Create("TextButton", {
+        Size = UDim2.new(1, 0, 0, 30),
+        BackgroundColor3 = Theme.PanelLite,
+        Text = text,
+        TextColor3 = Theme.Text,
+        Font = Enum.Font.GothamBold,
+        TextSize = 12,
+    }, parent)
+    Create("UICorner", {CornerRadius = UDim.new(0, 6)}, btn)
+    btn.MouseButton1Click:Connect(callback)
+    return btn
+end
+
+local LeviPage = CreatePage("Leviathan")
+local MainSec = CreateSection(LeviPage, "Leviathan Full")
+CreateToggle(MainSec, "Auto Leviathan Full", false, function(state)
+    Config.AutoLeviathanFull = state
+    if state then FightLeviathan() end
+end)
+CreateButton(MainSec, "Teleport to Tiki", function() _tp(CFrame.new(-16204, 9, 479)) end)
+
+local CombatPage = CreatePage("Combat")
+local CombatSec = CreateSection(CombatPage, "Attacks")
+CreateToggle(CombatSec, "Fast Attack", false, function(state) Config.FastAttack = state end)
+CreateToggle(CombatSec, "Silent Aim", true, function(state) Config.SilentAim = state end)
+
+local PerfPage = CreatePage("Performance")
+local PerfSec = CreateSection(PerfPage, "Optimization")
+CreateToggle(PerfSec, "FPS Boost (White Screen)", false, function(state)
+    if state then
+        game:GetService("RunService"):Set3dRenderingEnabled(false)
+        Create("Frame", {Size = UDim2.new(1,0,1,0), BackgroundColor3 = Color3.new(1,1,1), Parent = ScreenGui})
+    else
+        game:GetService("RunService"):Set3dRenderingEnabled(true)
+        for _, v in pairs(ScreenGui:GetChildren()) do
+            if v:IsA("Frame") and v.BackgroundColor3 == Color3.new(1,1,1) then v:Destroy() end
+        end
     end
 end)
 
-task.spawn(function()
-    task.wait(1)
-    SetupDoubleTap()
-    ApplyTheme("Midnight")
-end)
+local MiscPage = CreatePage("Misc")
+local MiscSec = CreateSection(MiscPage, "General")
+CreateToggle(MiscSec, "Auto Buso", true, function(state) Config.AutoBuso = state end)
 
-local Tabs = {
-    AutoLevi = Window:AddTab({ Title = "Auto Levi", Icon = "anchor" }),
-    AutoFarm = Window:AddTab({ Title = "Auto Farm", Icon = "crosshair" }),
-    SeaEvents = Window:AddTab({ Title = "Sea Events", Icon = "waves" }),
-    FPSBoost = Window:AddTab({ Title = "FPS Boost", Icon = "zap" }),
-    Config = Window:AddTab({ Title = "Config", Icon = "settings" }),
-}
+local ConfigPage = CreatePage("Config")
+local CfgSec = CreateSection(ConfigPage, "Settings")
+CreateButton(CfgSec, "Reload UI", function() ScreenGui:Destroy() loadstring(game:HttpGet("https://raw.githubusercontent.com/locoplayz01-source/RedStoneHub/main/main.lua"))() end)
 
-local LeviTab = Tabs.AutoLevi
-local farmTab = Tabs.AutoFarm
-local seaTab = Tabs.SeaEvents
-local fpsTab = Tabs.FPSBoost
-local confTab = Tabs.Config
+local OverlayGui = Create("ScreenGui", {
+    Name = "RedstoneOverlay",
+    ResetOnSpawn = false,
+    IgnoreGuiInset = true,
+    Parent = game:GetService("CoreGui")
+}, game:GetService("CoreGui"))
 
-local statsSec = LeviTab:AddSection("Player Stats")
-local statLabel = statsSec:AddParagraph({
-    Title = "Loading Stats...",
-    Content = "Please wait."
-})
+local OverlayFrame = Create("Frame", {
+    Size = UDim2.new(0, 320, 0, 80),
+    Position = UDim2.new(0.5, -160, 0, 15),
+    BackgroundColor3 = Theme.Base,
+    BorderSizePixel = 0,
+}, OverlayGui)
+Create("UICorner", {CornerRadius = UDim.new(0, 10)}, OverlayFrame)
+Create("UIStroke", {Color = Theme.Accent, Thickness = 1}, OverlayFrame)
+
+Create("TextLabel", {
+    Size = UDim2.new(0, 100, 0, 20),
+    Position = UDim2.new(0, 10, 0, 5),
+    BackgroundTransparency = 1,
+    Text = "Status",
+    TextColor3 = Theme.Muted,
+    Font = Enum.Font.GothamBold,
+    TextSize = 10,
+    TextXAlignment = Enum.TextXAlignment.Left,
+}, OverlayFrame)
+
+local StatusLabel = Create("TextLabel", {
+    Size = UDim2.new(1, -20, 0, 20),
+    Position = UDim2.new(0, 10, 0, 20),
+    BackgroundTransparency = 1,
+    Text = StatusText,
+    TextColor3 = Theme.Accent,
+    Font = Enum.Font.GothamBold,
+    TextSize = 14,
+    TextXAlignment = Enum.TextXAlignment.Left,
+}, OverlayFrame)
+
+Create("TextLabel", {
+    Size = UDim2.new(0, 100, 0, 15),
+    Position = UDim2.new(0, 10, 0, 45),
+    BackgroundTransparency = 1,
+    Text = "Players: " .. #Players:GetPlayers(),
+    TextColor3 = Theme.Text,
+    Font = Enum.Font.Gotham,
+    TextSize = 10,
+    TextXAlignment = Enum.TextXAlignment.Left,
+}, OverlayFrame)
+
+Create("TextLabel", {
+    Size = UDim2.new(0, 100, 0, 15),
+    Position = UDim2.new(0, 100, 0, 45),
+    BackgroundTransparency = 1,
+    Text = "Ping: " .. math.floor(LocalPlayer:GetNetworkPing() * 1000) .. "ms",
+    TextColor3 = Theme.Text,
+    Font = Enum.Font.Gotham,
+    TextSize = 10,
+    TextXAlignment = Enum.TextXAlignment.Left,
+}, OverlayFrame)
 
 task.spawn(function()
     while task.wait(1) do
-        pcall(function()
-            local name = LocalPlayer.Name
-            local lvl = LocalPlayer.Data and LocalPlayer.Data.Level and LocalPlayer.Data.Level.Value or "?"
-            local sea = GetSeaName()
-            local race = LocalPlayer.Data and LocalPlayer.Data.Race and LocalPlayer.Data.Race.Value or "?"
-            statLabel:SetTitle("User: " .. name .. " | Sea: " .. sea)
-            statLabel:SetDesc("Level: " .. tostring(lvl) .. " | Race: " .. race)
+        if StatusLabel then StatusLabel.Text = StatusText end
+        local pingLbl = OverlayFrame:FindFirstChild("PingLabel")
+        if pingLbl then pingLbl.Text = "Ping: " .. math.floor(LocalPlayer:GetNetworkPing() * 1000) .. "ms" end
+    end
+end)
+
+local dragging, dragStart, startPos
+TopBar.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = MainFrame.Position
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then dragging = false end
         end)
     end
 end)
-
-local leviMain = LeviTab:AddSection("Leviathan Control")
-local autoLeviToggle = leviMain:AddToggle("autoLevi", {
-    Title = "Auto Leviathan Full",
-    Default = false,
-    Callback = function(State)
-        _G.AutoLeviathanFull = State
-        if State then
-            task.spawn(function()
-                while _G.AutoLeviathanFull do
-                    task.wait(1)
-                    local mob, root = SeaAPI.Leviathan_Find()
-                    if mob and root then
-                        _tp(root.Position + Vector3.new(0, 50, 0))
-                        local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-                        if hum then hum:EquipTool(LocalPlayer.Backpack:FindFirstChildWhichIsA("Tool")) end
-                        pcall(function() RS.Modules.Net["RE/RegisterAttack"]:FireServer() end)
-                        pcall(function() RS.Modules.Net["RE/RegisterHit"]:FireServer(root, {{mob, root}}) end)
-                    else
-                        _tp(CFrame.new(-16204, 9, 479))
-                        task.wait(2)
-                    end
-                end
-            end)
-        end
-    end,
-})
-
-leviMain:AddButton({
-    Title = "Teleport to Tiki",
-    Callback = function() _tp(CFrame.new(-16204, 9, 479)) end
-})
-
-local leviImgSec = LeviTab:AddSection("Boss Preview")
-leviImgSec:AddParagraph({
-    Title = "Leviathan",
-    Content = "rbxassetid://1234567890 (Replace with your image)"
-})
-
-local farmSec = farmTab:AddSection("Farming Options")
-farmSec:AddDropdown("farmMode", {
-    Title = "Farm Mode",
-    Values = {"Level", "Fruit", "Item"},
-    Default = "Level",
-    Multi = false,
-    Callback = function(v) _G.FarmMode = v end,
-})
-
-farmSec:AddToggle("autoFarm", {
-    Title = "Enable Auto Farm",
-    Default = false,
-    Callback = function(State)
-        _G.AutoFarm = State
-        if State then DoAutoFarm() end
-    end,
-})
-
-local seaSec = seaTab:AddSection("Sea Events")
-seaSec:AddToggle("autoSea", {
-    Title = "Auto Sea Event (Beast Farm)",
-    Default = false,
-    Callback = function(State)
-        _G.AutoSeaEvent = State
-        if State then
-            task.spawn(function()
-                while _G.AutoSeaEvent do
-                    task.wait(1)
-                    local mob, root = SeaAPI.Sea_Mob(4000)
-                    if mob and root then
-                        SeaAPI.FightSeaEvent(mob, root)
-                    else
-                        _tp(CFrame.new(-16204, 9, 479))
-                        task.wait(2)
-                    end
-                end
-            end)
-        end
-    end,
-})
-
-local fpsSec = fpsTab:AddSection("FPS / Lag Optimization")
-local whiteScreenActive = false
-
-local function SetWhiteScreen(enabled)
-    whiteScreenActive = enabled
-    if enabled then
-        game:GetService("RunService"):Set3dRenderingEnabled(false)
-        local gui = Instance.new("ScreenGui", game.CoreGui)
-        gui.Name = "WhiteScreenOverlay"
-        local frame = Instance.new("Frame", gui)
-        frame.Size = UDim2.fromScale(1, 1)
-        frame.BackgroundColor3 = Color3.new(1,1,1)
-        _G.WhiteScreenGui = gui
-    else
-        game:GetService("RunService"):Set3dRenderingEnabled(true)
-        if _G.WhiteScreenGui then _G.WhiteScreenGui:Destroy() end
+game:GetService("UserInputService").InputChanged:Connect(function(input)
+    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local delta = input.Position - dragStart
+        MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
     end
-end
-
-fpsSec:AddToggle("whiteScreen", {
-    Title = "White Screen Mode",
-    Default = false,
-    Callback = function(State)
-        SetWhiteScreen(State)
-    end,
-})
-
-fpsSec:AddToggle("flagOpt", {
-    Title = "Flag-Based Optimization",
-    Default = false,
-    Callback = function(State)
-        if State then
-            pcall(function() setfflag("RenderFidelity", "0") end)
-            pcall(function() setfflag("DisablePostFx", "True") end)
-            pcall(function() game:GetService("Lighting").GlobalShadows = false end)
-            pcall(function() game:GetService("Lighting").FogEnd = 0 end)
-        else
-            pcall(function() setfflag("RenderFidelity", "Auto") end)
-            pcall(function() setfflag("DisablePostFx", "False") end)
-            pcall(function() game:GetService("Lighting").GlobalShadows = true end)
-        end
-    end,
-})
-
-local confSec = confTab:AddSection("Configuration")
-confSec:AddDropdown("themeSelect", {
-    Title = "Theme",
-    Values = {"Midnight", "Rose Gold", "Ocean", "Emerald", "Crimson", "Amethyst", "Sunset", "Matrix", "Ghost"},
-    Default = "Midnight",
-    Multi = false,
-    Callback = function(v) ApplyTheme(v) end,
-})
-
-local webhookUrl = ""
-confSec:AddInput("webhook", {
-    Title = "Webhook URL",
-    Default = "",
-    Placeholder = "https://discord.com/api/webhooks/...",
-    Callback = function(v) webhookUrl = v end,
-})
-
-confSec:AddToggle("webhookSend", {
-    Title = "Send Levi Kills to Webhook",
-    Default = false,
-    Callback = function(State) _G.WebhookSend = State end,
-})
-
-pcall(function()
-    SaveManager:SetLibrary(Fluent)
-    InterfaceManager:SetLibrary(Fluent)
-    SaveManager:IgnoreThemeSettings()
-    SaveManager:SetIgnoreIndexes({})
-    InterfaceManager.Settings.MenuKeybind = "G"
-    InterfaceManager:SetFolder("RedstoneUltimate")
-    SaveManager:SetFolder("RedstoneUltimate/configs")
-    InterfaceManager:BuildInterfaceSection(confTab)
-    SaveManager:BuildConfigSection(confTab)
-    SaveManager:LoadAutoloadConfig()
 end)
 
-Window:SelectTab(1)
-
-SendNotify = function(title, content)
-    pcall(function()
-        Fluent:Notify({ Title = title, Content = content, Duration = 3 })
-    end)
-end
-
-SendNotify("Redstone Ultimate", "Loaded successfully. Press G to toggle.")
+CloseBtn.MouseButton1Click:Connect(function()
+    ScreenGui.Enabled = not ScreenGui.Enabled
+end)
