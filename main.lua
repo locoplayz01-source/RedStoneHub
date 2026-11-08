@@ -29,26 +29,25 @@ local Config = {
     WhiteScreen = false,
     BoostFPS = false,
     PotatoMode = false,
-    Theme = "Default",
+    Theme = "RedBlack",
     Effects = true,
     HorizontalTabs = true,
     BoatSpeed = 250,
     BoatHeight = 150,
-    TweenSpeed = 300
+    TweenSpeed = 300,
+    Minimized = false,
+    CustomAccent = Color3.fromRGB(255, 30, 80)
 }
 
-local Theme = {
-    Default = { Base = Color3.fromRGB(15, 2, 5), Panel = Color3.fromRGB(30, 5, 10), PanelLite = Color3.fromRGB(45, 10, 15), Accent = Color3.fromRGB(255, 30, 80), Text = Color3.fromRGB(255, 240, 245), Muted = Color3.fromRGB(180, 130, 150), Stroke = Color3.fromRGB(255, 60, 100) },
-    AnimeOne = { Base = Color3.fromRGB(20, 10, 25), Panel = Color3.fromRGB(35, 15, 40), PanelLite = Color3.fromRGB(50, 20, 55), Accent = Color3.fromRGB(200, 80, 255), Text = Color3.fromRGB(255, 230, 255), Muted = Color3.fromRGB(150, 100, 180), Stroke = Color3.fromRGB(200, 80, 255) },
-    AnimeTwo = { Base = Color3.fromRGB(5, 10, 20), Panel = Color3.fromRGB(10, 20, 35), PanelLite = Color3.fromRGB(15, 30, 50), Accent = Color3.fromRGB(0, 180, 255), Text = Color3.fromRGB(220, 240, 255), Muted = Color3.fromRGB(100, 140, 180), Stroke = Color3.fromRGB(0, 180, 255) },
-    AnimeThree = { Base = Color3.fromRGB(10, 20, 10), Panel = Color3.fromRGB(20, 35, 20), PanelLite = Color3.fromRGB(30, 50, 30), Accent = Color3.fromRGB(50, 220, 100), Text = Color3.fromRGB(230, 255, 230), Muted = Color3.fromRGB(100, 180, 120), Stroke = Color3.fromRGB(50, 220, 100) },
-    AnimeFour = { Base = Color3.fromRGB(20, 15, 10), Panel = Color3.fromRGB(35, 25, 20), PanelLite = Color3.fromRGB(50, 35, 30), Accent = Color3.fromRGB(255, 180, 50), Text = Color3.fromRGB(255, 240, 220), Muted = Color3.fromRGB(180, 150, 100), Stroke = Color3.fromRGB(255, 180, 50) },
-    CustomOne = { Base = Color3.fromRGB(15, 0, 0), Panel = Color3.fromRGB(30, 0, 0), PanelLite = Color3.fromRGB(45, 5, 5), Accent = Color3.fromRGB(255, 0, 0), Text = Color3.fromRGB(255, 220, 220), Muted = Color3.fromRGB(180, 100, 100), Stroke = Color3.fromRGB(255, 0, 0), BGImage = "rbxassetid://YOUR_FIRST_IMAGE_ID" },
-    CustomTwo = { Base = Color3.fromRGB(10, 10, 10), Panel = Color3.fromRGB(20, 20, 20), PanelLite = Color3.fromRGB(30, 30, 30), Accent = Color3.fromRGB(180, 180, 180), Text = Color3.fromRGB(240, 240, 240), Muted = Color3.fromRGB(120, 120, 120), Stroke = Color3.fromRGB(180, 180, 180), BGImage = "rbxassetid://YOUR_SECOND_IMAGE_ID" },
-    CustomThree = { Base = Color3.fromRGB(20, 15, 18), Panel = Color3.fromRGB(35, 25, 30), PanelLite = Color3.fromRGB(50, 35, 40), Accent = Color3.fromRGB(255, 105, 180), Text = Color3.fromRGB(255, 230, 240), Muted = Color3.fromRGB(180, 130, 150), Stroke = Color3.fromRGB(255, 105, 180), BGImage = "rbxassetid://YOUR_THIRD_IMAGE_ID" }
+local Themes = {
+    Default = { Base = Color3.fromRGB(15, 2, 5), Panel = Color3.fromRGB(30, 5, 10), Accent = Color3.fromRGB(255, 30, 80), Text = Color3.fromRGB(255, 240, 245), Muted = Color3.fromRGB(180, 130, 150) },
+    RedBlack = { Base = Color3.fromRGB(15, 0, 0), Panel = Color3.fromRGB(30, 0, 0), Accent = Color3.fromRGB(255, 0, 0), Text = Color3.fromRGB(255, 220, 220), Muted = Color3.fromRGB(180, 100, 100) },
+    GreyBlack = { Base = Color3.fromRGB(10, 10, 10), Panel = Color3.fromRGB(20, 20, 20), Accent = Color3.fromRGB(180, 180, 180), Text = Color3.fromRGB(240, 240, 240), Muted = Color3.fromRGB(120, 120, 120) },
+    PinkGrey = { Base = Color3.fromRGB(20, 15, 18), Panel = Color3.fromRGB(35, 25, 30), Accent = Color3.fromRGB(255, 105, 180), Text = Color3.fromRGB(255, 230, 240), Muted = Color3.fromRGB(180, 130, 150) }
 }
 
-local CurrentTheme = Theme[Config.Theme] or Theme.Default
+local CurrentTheme = Themes[Config.Theme] or Themes.Default
+local AccentColor = CurrentTheme.Accent
 
 local Character = LocalPlayer.Character
 local HD = Character and Character:FindFirstChild("Humanoid")
@@ -347,6 +346,7 @@ local function FightLeviathan()
             local model, root = Leviathan_Find()
             if model and root then
                 StatusText = "Attacking: " .. model.Name
+                AttackModel = model
                 _tp(root.Position + Vector3.new(0, 75, 0))
                 if not (Character and Character:FindFirstChildOfClass("Humanoid") and Character.Humanoid.Sit) then
                     Equip_Auto(Config.SelectWeapon)
@@ -390,6 +390,8 @@ local function ApplyVFX(state)
     end
 end
 
+if game.CoreGui:FindFirstChild("RedstoneUI") then game.CoreGui.RedstoneUI:Destroy() end
+
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "RedstoneUI"
 ScreenGui.ResetOnSpawn = false
@@ -404,8 +406,8 @@ local function Create(className, props, parent)
 end
 
 local MainFrame = Create("Frame", {
-    Size = UDim2.new(0, 680, 0, 440),
-    Position = UDim2.new(0.5, -340, 0.5, -220),
+    Size = UDim2.new(0, 520, 0, 380),
+    Position = UDim2.new(0.5, -260, 0.5, -190),
     BackgroundColor3 = CurrentTheme.Base,
     BorderSizePixel = 0,
 }, ScreenGui)
@@ -414,7 +416,7 @@ Create("UICorner", {CornerRadius = UDim.new(0, 12)}, MainFrame)
 
 local Stroke = Create("UIStroke", {
     Thickness = 1.5,
-    Color = CurrentTheme.Stroke,
+    Color = AccentColor,
     Transparency = 0.3,
 }, MainFrame)
 
@@ -427,62 +429,62 @@ local Gradient = Create("UIGradient", {
 }, MainFrame)
 
 local TopBar = Create("Frame", {
-    Size = UDim2.new(1, 0, 0, 50),
+    Size = UDim2.new(1, 0, 0, 40),
     BackgroundTransparency = 1,
 }, MainFrame)
 
 local Logo = Create("Frame", {
-    Size = UDim2.new(0, 30, 0, 30),
-    Position = UDim2.new(0, 15, 0.5, -15),
-    BackgroundColor3 = CurrentTheme.Accent,
+    Size = UDim2.new(0, 26, 0, 26),
+    Position = UDim2.new(0, 10, 0.5, -13),
+    BackgroundColor3 = AccentColor,
 }, TopBar)
-Create("UICorner", {CornerRadius = UDim.new(0, 8)}, Logo)
+Create("UICorner", {CornerRadius = UDim.new(0, 6)}, Logo)
 Create("TextLabel", {
     Size = UDim2.new(1, 0, 1, 0),
     BackgroundTransparency = 1,
-    Text = "R",
+    Text = "RH",
     TextColor3 = CurrentTheme.Text,
     Font = Enum.Font.GothamBold,
-    TextSize = 16,
+    TextSize = 14,
 }, Logo)
 
 local Title = Create("TextLabel", {
     Size = UDim2.new(0, 200, 0, 16),
-    Position = UDim2.new(0, 55, 0, 10),
+    Position = UDim2.new(0, 45, 0, 6),
     BackgroundTransparency = 1,
     Text = "REDSTONE HUB",
-    TextColor3 = CurrentTheme.Accent,
+    TextColor3 = AccentColor,
     Font = Enum.Font.GothamBold,
-    TextSize = 14,
+    TextSize = 13,
     TextXAlignment = Enum.TextXAlignment.Left,
 }, TopBar)
 
 local SubTitle = Create("TextLabel", {
     Size = UDim2.new(0, 200, 0, 14),
-    Position = UDim2.new(0, 55, 0, 26),
+    Position = UDim2.new(0, 45, 0, 20),
     BackgroundTransparency = 1,
-    Text = "Made by He",
+    Text = "Compact Edition",
     TextColor3 = CurrentTheme.Muted,
     Font = Enum.Font.Gotham,
-    TextSize = 11,
+    TextSize = 10,
     TextXAlignment = Enum.TextXAlignment.Left,
 }, TopBar)
 
 local LayoutBtn = Create("TextButton", {
-    Size = UDim2.new(0, 30, 0, 30),
-    Position = UDim2.new(1, -90, 0.5, -15),
-    BackgroundColor3 = CurrentTheme.PanelLite,
+    Size = UDim2.new(0, 26, 0, 26),
+    Position = UDim2.new(1, -70, 0.5, -13),
+    BackgroundColor3 = CurrentTheme.Panel,
     Text = "↔",
     TextColor3 = CurrentTheme.Text,
     Font = Enum.Font.GothamBold,
-    TextSize = 16,
+    TextSize = 14,
 }, TopBar)
 Create("UICorner", {CornerRadius = UDim.new(0, 6)}, LayoutBtn)
 
 local CloseBtn = Create("TextButton", {
-    Size = UDim2.new(0, 30, 0, 30),
-    Position = UDim2.new(1, -50, 0.5, -15),
-    BackgroundColor3 = CurrentTheme.PanelLite,
+    Size = UDim2.new(0, 26, 0, 26),
+    Position = UDim2.new(1, -36, 0.5, -13),
+    BackgroundColor3 = CurrentTheme.Panel,
     Text = "X",
     TextColor3 = CurrentTheme.Text,
     Font = Enum.Font.GothamBold,
@@ -491,87 +493,132 @@ local CloseBtn = Create("TextButton", {
 Create("UICorner", {CornerRadius = UDim.new(0, 6)}, CloseBtn)
 
 local TabContainer = Create("Frame", {
-    Size = UDim2.new(1, -30, 0, 35),
-    Position = UDim2.new(0, 15, 0, 55),
+    Size = UDim2.new(1, -20, 0, 30),
+    Position = UDim2.new(0, 10, 0, 45),
     BackgroundColor3 = CurrentTheme.Panel,
     BackgroundTransparency = 0.5,
 }, MainFrame)
-Create("UICorner", {CornerRadius = UDim.new(0, 8)}, TabContainer)
-Create("UIListLayout", {FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 5), HorizontalAlignment = Enum.HorizontalAlignment.Center}, TabContainer)
+Create("UICorner", {CornerRadius = UDim.new(0, 6)}, TabContainer)
+local TabLayout = Create("UIListLayout", {FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 4), HorizontalAlignment = Enum.HorizontalAlignment.Center}, TabContainer)
 
 local ContentContainer = Create("Frame", {
-    Size = UDim2.new(1, -30, 1, -105),
-    Position = UDim2.new(0, 15, 0, 95),
+    Size = UDim2.new(1, -20, 1, -85),
+    Position = UDim2.new(0, 10, 0, 80),
     BackgroundTransparency = 1,
 }, MainFrame)
+
+local ScrollFrame = Create("ScrollingFrame", {
+    Size = UDim2.new(1, 0, 1, 0),
+    BackgroundTransparency = 1,
+    ScrollBarThickness = 2,
+    ScrollBarImageColor3 = AccentColor,
+    CanvasSize = UDim2.new(0, 0, 0, 0),
+    AutomaticCanvasSize = Enum.AutomaticSize.Y,
+}, ContentContainer)
 
 local Pages = {}
 local CurrentPage = nil
 local TabButtons = {}
 
+local function UpdateTheme()
+    MainFrame.BackgroundColor3 = CurrentTheme.Base
+    Stroke.Color = AccentColor
+    Gradient.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, CurrentTheme.Base),
+        ColorSequenceKeypoint.new(1, CurrentTheme.Panel),
+    })
+    Logo.BackgroundColor3 = AccentColor
+    Title.TextColor3 = AccentColor
+    SubTitle.TextColor3 = CurrentTheme.Muted
+    LayoutBtn.BackgroundColor3 = CurrentTheme.Panel
+    CloseBtn.BackgroundColor3 = CurrentTheme.Panel
+    TabContainer.BackgroundColor3 = CurrentTheme.Panel
+    ScrollFrame.ScrollBarImageColor3 = AccentColor
+    
+    for _, btn in pairs(TabButtons) do
+        btn.BackgroundColor3 = CurrentTheme.Base
+        btn.TextColor3 = CurrentTheme.Muted
+        if btn == CurrentPage.Btn then
+            btn.BackgroundColor3 = AccentColor
+            btn.TextColor3 = CurrentTheme.Text
+        end
+    end
+    
+    for _, page in pairs(Pages) do
+        for _, v in pairs(page:GetDescendants()) do
+            if v:IsA("Frame") and v:GetAttribute("IsSection") then
+                v.BackgroundColor3 = CurrentTheme.Panel
+            elseif v:IsA("Frame") and v:GetAttribute("IsToggle") then
+                v.BackgroundColor3 = CurrentTheme.Panel
+            elseif v:IsA("TextLabel") then
+                v.TextColor3 = CurrentTheme.Text
+            elseif v:IsA("Frame") and v:GetAttribute("IsAccent") then
+                v.BackgroundColor3 = AccentColor
+            end
+        end
+    end
+end
+
+local function SwitchPage(page)
+    if CurrentPage then CurrentPage.Visible = false end
+    for _, btn in pairs(TabButtons) do
+        btn.BackgroundColor3 = CurrentTheme.Base
+        btn.TextColor3 = CurrentTheme.Muted
+    end
+    page.Visible = true
+    page.Btn.BackgroundColor3 = AccentColor
+    page.Btn.TextColor3 = CurrentTheme.Text
+    CurrentPage = page
+end
+
 local function SwitchLayout()
     Config.HorizontalTabs = not Config.HorizontalTabs
     if Config.HorizontalTabs then
-        MainFrame.Size = UDim2.new(0, 680, 0, 440)
-        TabContainer.Size = UDim2.new(1, -30, 0, 35)
-        TabContainer.Position = UDim2.new(0, 15, 0, 55)
-        TabContainer.UIListLayout.FillDirection = Enum.FillDirection.Horizontal
-        ContentContainer.Size = UDim2.new(1, -30, 1, -105)
-        ContentContainer.Position = UDim2.new(0, 15, 0, 95)
+        TabContainer.Size = UDim2.new(1, -20, 0, 30)
+        TabContainer.Position = UDim2.new(0, 10, 0, 45)
+        TabLayout.FillDirection = Enum.FillDirection.Horizontal
+        ContentContainer.Size = UDim2.new(1, -20, 1, -85)
+        ContentContainer.Position = UDim2.new(0, 10, 0, 80)
         LayoutBtn.Text = "↔"
     else
-        MainFrame.Size = UDim2.new(0, 500, 0, 550)
-        TabContainer.Size = UDim2.new(0, 100, 1, -90)
-        TabContainer.Position = UDim2.new(0, 10, 0, 55)
-        TabContainer.UIListLayout.FillDirection = Enum.FillDirection.Vertical
-        ContentContainer.Size = UDim2.new(1, -130, 1, -65)
-        ContentContainer.Position = UDim2.new(0, 120, 0, 55)
+        TabContainer.Size = UDim2.new(0, 80, 1, -70)
+        TabContainer.Position = UDim2.new(0, 10, 0, 45)
+        TabLayout.FillDirection = Enum.FillDirection.Vertical
+        ContentContainer.Size = UDim2.new(1, -110, 1, -55)
+        ContentContainer.Position = UDim2.new(0, 100, 0, 45)
         LayoutBtn.Text = "↕"
     end
-    MainFrame.Position = UDim2.new(0.5, -MainFrame.AbsoluteSize.X/2, 0.5, -MainFrame.AbsoluteSize.Y/2)
 end
 
 LayoutBtn.MouseButton1Click:Connect(SwitchLayout)
 
 local function CreatePage(name)
     local page = Create("Frame", {
-        Size = UDim2.new(1, 0, 1, 0),
+        Size = UDim2.new(1, 0, 0, 0),
+        AutomaticSize = Enum.AutomaticSize.Y,
         BackgroundTransparency = 1,
         Visible = false,
-    }, ContentContainer)
+    }, ScrollFrame)
+    Create("UIListLayout", {Padding = UDim.new(0, 8)}, page)
     
     local tabBtn = Create("TextButton", {
-        Size = UDim2.new(0, 85, 1, -10),
+        Size = UDim2.new(0, 75, 1, -8),
         BackgroundColor3 = CurrentTheme.Base,
         BackgroundTransparency = 0.5,
         Text = name,
         TextColor3 = CurrentTheme.Muted,
         Font = Enum.Font.GothamBold,
-        TextSize = 12,
+        TextSize = 11,
     }, TabContainer)
     Create("UICorner", {CornerRadius = UDim.new(0, 6)}, tabBtn)
     
-    tabBtn.MouseButton1Click:Connect(function()
-        if CurrentPage then CurrentPage.Visible = false end
-        for _, btn in pairs(TabButtons) do
-            btn.BackgroundTransparency = 0.5
-            btn.TextColor3 = CurrentTheme.Muted
-        end
-        page.Visible = true
-        tabBtn.BackgroundTransparency = 0
-        tabBtn.TextColor3 = CurrentTheme.Accent
-        CurrentPage = page
-    end)
+    tabBtn.MouseButton1Click:Connect(function() SwitchPage(page) end)
     
     table.insert(TabButtons, tabBtn)
     Pages[name] = page
+    page.Btn = tabBtn
     
-    if not CurrentPage then
-        page.Visible = true
-        tabBtn.BackgroundTransparency = 0
-        tabBtn.TextColor3 = CurrentTheme.Accent
-        CurrentPage = page
-    end
+    if not CurrentPage then SwitchPage(page) end
     return page
 end
 
@@ -581,17 +628,18 @@ local function CreateSection(parent, title)
         AutomaticSize = Enum.AutomaticSize.Y,
         BackgroundColor3 = CurrentTheme.Panel,
         BackgroundTransparency = 0.2,
-        Position = UDim2.new(0, 0, 0, #parent:GetChildren() * 10),
     }, parent)
+    sec:SetAttribute("IsSection", true)
     Create("UICorner", {CornerRadius = UDim.new(0, 8)}, sec)
-    Create("UIPadding", {PaddingTop = UDim.new(0, 10), PaddingBottom = UDim.new(0, 10), PaddingLeft = UDim.new(0, 10), PaddingRight = UDim.new(0, 10)}, sec)
-    Create("UIListLayout", {Padding = UDim.new(0, 8)}, sec)
+    Create("UIPadding", {PaddingTop = UDim.new(0, 8), PaddingBottom = UDim.new(0, 8), PaddingLeft = UDim.new(0, 8), PaddingRight = UDim.new(0, 8)}, sec)
+    Create("UIListLayout", {Padding = UDim.new(0, 6)}, sec)
     
     local header = Create("Frame", {
-        Size = UDim2.new(1, 0, 0, 20),
+        Size = UDim2.new(1, 0, 0, 18),
         BackgroundTransparency = 1,
     }, sec)
-    Create("Frame", {Size = UDim2.new(0, 3, 1, 0), BackgroundColor3 = CurrentTheme.Accent}, header)
+    local accentLine = Create("Frame", {Size = UDim2.new(0, 3, 1, 0), BackgroundColor3 = AccentColor}, header)
+    accentLine:SetAttribute("IsAccent", true)
     Create("TextLabel", {
         Size = UDim2.new(1, -10, 1, 0),
         Position = UDim2.new(0, 8, 0, 0),
@@ -599,7 +647,7 @@ local function CreateSection(parent, title)
         Text = string.upper(title),
         TextColor3 = CurrentTheme.Text,
         Font = Enum.Font.GothamBold,
-        TextSize = 12,
+        TextSize = 11,
         TextXAlignment = Enum.TextXAlignment.Left,
     }, header)
     return sec
@@ -607,34 +655,35 @@ end
 
 local function CreateToggle(parent, text, default, callback)
     local frame = Create("Frame", {
-        Size = UDim2.new(1, 0, 0, 30),
-        BackgroundColor3 = CurrentTheme.PanelLite,
+        Size = UDim2.new(1, 0, 0, 28),
+        BackgroundColor3 = CurrentTheme.Panel,
         BackgroundTransparency = 0.5,
     }, parent)
+    frame:SetAttribute("IsToggle", true)
     Create("UICorner", {CornerRadius = UDim.new(0, 6)}, frame)
     
     Create("TextLabel", {
         Size = UDim2.new(1, -50, 1, 0),
-        Position = UDim2.new(0, 10, 0, 0),
+        Position = UDim2.new(0, 8, 0, 0),
         BackgroundTransparency = 1,
         Text = text,
         TextColor3 = CurrentTheme.Text,
         Font = Enum.Font.Gotham,
-        TextSize = 12,
+        TextSize = 11,
         TextXAlignment = Enum.TextXAlignment.Left,
     }, frame)
     
     local toggleBtn = Create("TextButton", {
-        Size = UDim2.new(0, 36, 0, 18),
-        Position = UDim2.new(1, -46, 0.5, -9),
-        BackgroundColor3 = default and CurrentTheme.Accent or CurrentTheme.Panel,
+        Size = UDim2.new(0, 32, 0, 16),
+        Position = UDim2.new(1, -40, 0.5, -8),
+        BackgroundColor3 = default and AccentColor or CurrentTheme.Base,
         Text = "",
     }, frame)
     Create("UICorner", {CornerRadius = UDim.new(1, 0)}, toggleBtn)
     
     local knob = Create("Frame", {
-        Size = UDim2.new(0, 14, 0, 14),
-        Position = default and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7),
+        Size = UDim2.new(0, 12, 0, 12),
+        Position = default and UDim2.new(1, -14, 0.5, -6) or UDim2.new(0, 2, 0.5, -6),
         BackgroundColor3 = CurrentTheme.Text,
     }, toggleBtn)
     Create("UICorner", {CornerRadius = UDim.new(1, 0)}, knob)
@@ -643,10 +692,10 @@ local function CreateToggle(parent, text, default, callback)
     toggleBtn.MouseButton1Click:Connect(function()
         state = not state
         TweenService:Create(knob, TweenInfo.new(0.15), {
-            Position = state and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7)
+            Position = state and UDim2.new(1, -14, 0.5, -6) or UDim2.new(0, 2, 0.5, -6)
         }):Play()
         TweenService:Create(toggleBtn, TweenInfo.new(0.15), {
-            BackgroundColor3 = state and CurrentTheme.Accent or CurrentTheme.Panel
+            BackgroundColor3 = state and AccentColor or CurrentTheme.Base
         }):Play()
         if callback then callback(state) end
     end)
@@ -655,48 +704,96 @@ end
 
 local function CreateButton(parent, text, callback)
     local btn = Create("TextButton", {
-        Size = UDim2.new(1, 0, 0, 30),
-        BackgroundColor3 = CurrentTheme.PanelLite,
+        Size = UDim2.new(1, 0, 0, 28),
+        BackgroundColor3 = CurrentTheme.Panel,
         Text = text,
         TextColor3 = CurrentTheme.Text,
         Font = Enum.Font.GothamBold,
-        TextSize = 12,
+        TextSize = 11,
     }, parent)
+    btn:SetAttribute("IsToggle", true)
     Create("UICorner", {CornerRadius = UDim.new(0, 6)}, btn)
     btn.MouseButton1Click:Connect(callback)
     return btn
 end
 
+local OverlayGui = Create("ScreenGui", {
+    Name = "RedstoneOverlay",
+    ResetOnSpawn = false,
+    IgnoreGuiInset = true,
+    Parent = game:GetService("CoreGui")
+}, game:GetService("CoreGui"))
+
+local OverlayFrame = Create("Frame", {
+    Size = UDim2.new(0, 280, 0, 70),
+    Position = UDim2.new(0.5, -140, 0, 10),
+    BackgroundColor3 = CurrentTheme.Base,
+    BorderSizePixel = 0,
+    Visible = false,
+}, OverlayGui)
+Create("UICorner", {CornerRadius = UDim.new(0, 8)}, OverlayFrame)
+Create("UIStroke", {Color = AccentColor, Thickness = 1}, OverlayFrame)
+
+Create("TextLabel", {
+    Size = UDim2.new(0, 100, 0, 16),
+    Position = UDim2.new(0, 10, 0, 4),
+    BackgroundTransparency = 1,
+    Text = "STATUS",
+    TextColor3 = CurrentTheme.Muted,
+    Font = Enum.Font.GothamBold,
+    TextSize = 9,
+    TextXAlignment = Enum.TextXAlignment.Left,
+}, OverlayFrame)
+
+local StatusLabel = Create("TextLabel", {
+    Size = UDim2.new(1, -20, 0, 16),
+    Position = UDim2.new(0, 10, 0, 18),
+    BackgroundTransparency = 1,
+    Text = StatusText,
+    TextColor3 = AccentColor,
+    Font = Enum.Font.GothamBold,
+    TextSize = 12,
+    TextXAlignment = Enum.TextXAlignment.Left,
+}, OverlayFrame)
+
+Create("TextLabel", {
+    Size = UDim2.new(0, 100, 0, 14),
+    Position = UDim2.new(0, 10, 0, 40),
+    BackgroundTransparency = 1,
+    Text = "Players: " .. #Players:GetPlayers(),
+    TextColor3 = CurrentTheme.Text,
+    Font = Enum.Font.Gotham,
+    TextSize = 9,
+    TextXAlignment = Enum.TextXAlignment.Left,
+}, OverlayFrame)
+
+local PingLabel = Create("TextLabel", {
+    Size = UDim2.new(0, 100, 0, 14),
+    Position = UDim2.new(0, 90, 0, 40),
+    BackgroundTransparency = 1,
+    Text = "Ping: " .. math.floor(LocalPlayer:GetNetworkPing() * 1000) .. "ms",
+    TextColor3 = CurrentTheme.Text,
+    Font = Enum.Font.Gotham,
+    TextSize = 9,
+    TextXAlignment = Enum.TextXAlignment.Left,
+}, OverlayFrame)
+
 local LeviPage = CreatePage("Leviathan")
-local MainSec = CreateSection(LeviPage, "Leviathan Full")
+local MainSec = CreateSection(LeviPage, "Auto Levi")
 CreateToggle(MainSec, "Auto Leviathan Full", false, function(state)
     Config.AutoLeviathanFull = state
+    OverlayFrame.Visible = state
     if state then FightLeviathan() end
 end)
 CreateButton(MainSec, "Teleport to Tiki", function() _tp(CFrame.new(-16204, 9, 479)) end)
 
 local CombatPage = CreatePage("Combat")
-local CombatSec = CreateSection(CombatPage, "Attacks")
+local CombatSec = CreateSection(CombatPage, "Settings")
 CreateToggle(CombatSec, "Fast Attack", false, function(state) Config.FastAttack = state end)
 CreateToggle(CombatSec, "Silent Aim", true, function(state) Config.SilentAim = state end)
 
-local PerfPage = CreatePage("Performance")
-local PerfSec = CreateSection(PerfPage, "Optimization")
-CreateToggle(PerfSec, "FPS Boost (White Screen)", false, function(state)
-    Config.WhiteScreen = state
-    if state then
-        game:GetService("RunService"):Set3dRenderingEnabled(false)
-        Create("Frame", {Size = UDim2.new(1,0,1,0), BackgroundColor3 = Color3.new(1,1,1), Parent = ScreenGui})
-    else
-        game:GetService("RunService"):Set3dRenderingEnabled(true)
-        for _, v in pairs(ScreenGui:GetChildren()) do
-            if v:IsA("Frame") and v.BackgroundColor3 == Color3.new(1,1,1) then v:Destroy() end
-        end
-    end
-end)
-
 local MiscPage = CreatePage("Misc")
-local MiscSec = CreateSection(MiscPage, "Ken and Race")
+local MiscSec = CreateSection(MiscPage, "Haki & Race")
 CreateToggle(MiscSec, "Auto Buso", true, function(state) Config.AutoBuso = state end)
 CreateToggle(MiscSec, "Auto Ken", false, function(state) Config.AutoKen = state end)
 CreateToggle(MiscSec, "Auto V3", false, function(state) Config.AutoV3 = state end)
@@ -717,7 +814,6 @@ CreateToggle(MiscPerfSec, "White Screen", false, function(state)
         end
     end
 end)
-CreateToggle(MiscPerfSec, "Boost FPS", false, function(state) Config.BoostFPS = state end)
 CreateToggle(MiscPerfSec, "Potato Mode", false, function(state)
     Config.PotatoMode = state
     if state then
@@ -730,107 +826,39 @@ CreateToggle(MiscPerfSec, "Potato Mode", false, function(state)
 end)
 
 local ThemePage = CreatePage("Theme")
-local ThemeSec = CreateSection(ThemePage, "Theme")
-local themeNames = {"Default", "AnimeOne", "AnimeTwo", "AnimeThree", "AnimeFour", "CustomOne", "CustomTwo", "CustomThree"}
+local ThemeSec = CreateSection(ThemePage, "Select Theme")
+local themeNames = {"RedBlack", "GreyBlack", "PinkGrey"}
 local themeIndex = 1
-local themeBtn = CreateButton(ThemeSec, "Current: Default", function()
+local themeBtn = CreateButton(ThemeSec, "Current: " .. Config.Theme, function()
     themeIndex = themeIndex % #themeNames + 1
     Config.Theme = themeNames[themeIndex]
-    CurrentTheme = Theme[Config.Theme]
+    CurrentTheme = Themes[Config.Theme]
     themeBtn.Text = "Current: " .. Config.Theme
-    MainFrame.BackgroundColor3 = CurrentTheme.Base
-    Stroke.Color = CurrentTheme.Stroke
-    Gradient.Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0, CurrentTheme.Base),
-        ColorSequenceKeypoint.new(1, CurrentTheme.Panel),
-    })
-    Logo.BackgroundColor3 = CurrentTheme.Accent
-    Title.TextColor3 = CurrentTheme.Accent
-    SubTitle.TextColor3 = CurrentTheme.Muted
-    LayoutBtn.BackgroundColor3 = CurrentTheme.PanelLite
-    CloseBtn.BackgroundColor3 = CurrentTheme.PanelLite
-    TabContainer.BackgroundColor3 = CurrentTheme.Panel
-    for _, btn in pairs(TabButtons) do
-        btn.BackgroundColor3 = CurrentTheme.Base
-        btn.TextColor3 = CurrentTheme.Muted
-    end
-    for _, sec in pairs(ContentContainer:GetChildren()) do
-        if sec:IsA("Frame") then
-            for _, child in pairs(sec:GetChildren()) do
-                if child:IsA("Frame") and child.BackgroundColor3 == CurrentTheme.Panel then
-                    child.BackgroundColor3 = CurrentTheme.Panel
-                end
-            end
-        end
-    end
+    UpdateTheme()
 end)
 
-local EffectsSec = CreateSection(ThemePage, "Effects")
-CreateToggle(EffectsSec, "Enable Effects", true, function(state) Config.Effects = state end)
+local ColorSec = CreateSection(ThemePage, "Color Wheel (Accent)")
+local ColorInput = Create("TextBox", {
+    Size = UDim2.new(1, 0, 0, 28),
+    BackgroundColor3 = CurrentTheme.Panel,
+    Text = "255, 30, 80",
+    TextColor3 = CurrentTheme.Text,
+    Font = Enum.Font.Gotham,
+    TextSize = 11,
+    PlaceholderText = "R, G, B",
+}, ColorSec)
+Create("UICorner", {CornerRadius = UDim.new(0, 6)}, ColorInput)
+CreateButton(ColorSec, "Apply Color", function()
+    local r, g, b = string.match(ColorInput.Text, "(%d+),%s*(%d+),%s*(%d+)")
+    if r and g and b then
+        AccentColor = Color3.fromRGB(tonumber(r), tonumber(g), tonumber(b))
+        UpdateTheme()
+    end
+end)
 
 local ConfigPage = CreatePage("Config")
 local CfgSec = CreateSection(ConfigPage, "Settings")
 CreateButton(CfgSec, "Reload UI", function() ScreenGui:Destroy() loadstring(game:HttpGet("https://raw.githubusercontent.com/locoplayz01-source/RedStoneHub/main/main.lua"))() end)
-
-local OverlayGui = Create("ScreenGui", {
-    Name = "RedstoneOverlay",
-    ResetOnSpawn = false,
-    IgnoreGuiInset = true,
-    Parent = game:GetService("CoreGui")
-}, game:GetService("CoreGui"))
-
-local OverlayFrame = Create("Frame", {
-    Size = UDim2.new(0, 320, 0, 80),
-    Position = UDim2.new(0.5, -160, 0, 15),
-    BackgroundColor3 = CurrentTheme.Base,
-    BorderSizePixel = 0,
-}, OverlayGui)
-Create("UICorner", {CornerRadius = UDim.new(0, 10)}, OverlayFrame)
-Create("UIStroke", {Color = CurrentTheme.Accent, Thickness = 1}, OverlayFrame)
-
-Create("TextLabel", {
-    Size = UDim2.new(0, 100, 0, 20),
-    Position = UDim2.new(0, 10, 0, 5),
-    BackgroundTransparency = 1,
-    Text = "Status",
-    TextColor3 = CurrentTheme.Muted,
-    Font = Enum.Font.GothamBold,
-    TextSize = 10,
-    TextXAlignment = Enum.TextXAlignment.Left,
-}, OverlayFrame)
-
-local StatusLabel = Create("TextLabel", {
-    Size = UDim2.new(1, -20, 0, 20),
-    Position = UDim2.new(0, 10, 0, 20),
-    BackgroundTransparency = 1,
-    Text = StatusText,
-    TextColor3 = CurrentTheme.Accent,
-    Font = Enum.Font.GothamBold,
-    TextSize = 14,
-    TextXAlignment = Enum.TextXAlignment.Left,
-}, OverlayFrame)
-
-Create("TextLabel", {
-    Size = UDim2.new(0, 100, 0, 15),
-    Position = UDim2.new(0, 10, 0, 45),
-    BackgroundTransparency = 1,
-    Text = "Players: " .. #Players:GetPlayers(),
-    TextColor3 = CurrentTheme.Text,
-    Font = Enum.Font.Gotham,
-    TextSize = 10,
-    TextXAlignment = Enum.TextXAlignment.Left,
-}, OverlayFrame)
-
-local PingLabel = Create("TextLabel", {
-    Size = UDim2.new(0, 100, 0, 15),
-    Position = UDim2.new(0, 100, 0, 45),
-    BackgroundTransparency = 1,
-    Text = "Ping: " .. math.floor(LocalPlayer:GetNetworkPing() * 1000) .. "ms",
-    TextColor3 = CurrentTheme.Text,
-    Font = Enum.Font.Gotham,
-    TextSize = 10,
-    TextXAlignment = Enum.TextXAlignment.Left,
-}, OverlayFrame)
 
 task.spawn(function()
     while task.wait(1) do
@@ -858,5 +886,26 @@ game:GetService("UserInputService").InputChanged:Connect(function(input)
 end)
 
 CloseBtn.MouseButton1Click:Connect(function()
-    ScreenGui.Enabled = not ScreenGui.Enabled
+    Config.Minimized = not Config.Minimized
+    if Config.Minimized then
+        MainFrame.Size = UDim2.new(0, 40, 0, 40)
+        TopBar.Size = UDim2.new(1, 0, 1, 0)
+        Logo.Position = UDim2.new(0.5, -13, 0.5, -13)
+        Title.Visible = false
+        SubTitle.Visible = false
+        LayoutBtn.Visible = false
+        CloseBtn.Position = UDim2.new(1, -20, 0, 0)
+        TabContainer.Visible = false
+        ContentContainer.Visible = false
+    else
+        MainFrame.Size = UDim2.new(0, 520, 0, 380)
+        TopBar.Size = UDim2.new(1, 0, 0, 40)
+        Logo.Position = UDim2.new(0, 10, 0.5, -13)
+        Title.Visible = true
+        SubTitle.Visible = true
+        LayoutBtn.Visible = true
+        CloseBtn.Position = UDim2.new(1, -36, 0.5, -13)
+        TabContainer.Visible = true
+        ContentContainer.Visible = true
+    end
 end)
