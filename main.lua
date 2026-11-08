@@ -27,37 +27,26 @@ local Config = {
     AutoFastMode = false,
     DisableVFX = false,
     WhiteScreen = false,
-    BoostFPS = false,
     PotatoMode = false,
     Theme = "RedBlack",
-    Effects = true,
-    HorizontalTabs = true,
-    BoatSpeed = 250,
-    BoatHeight = 150,
-    TweenSpeed = 300,
-    Minimized = false,
-    CustomAccent = Color3.fromRGB(255, 30, 80)
+    AccentColor = Color3.fromRGB(255, 30, 80)
 }
 
 local Themes = {
-    Default = { Base = Color3.fromRGB(15, 2, 5), Panel = Color3.fromRGB(30, 5, 10), Accent = Color3.fromRGB(255, 30, 80), Text = Color3.fromRGB(255, 240, 245), Muted = Color3.fromRGB(180, 130, 150) },
-    RedBlack = { Base = Color3.fromRGB(15, 0, 0), Panel = Color3.fromRGB(30, 0, 0), Accent = Color3.fromRGB(255, 0, 0), Text = Color3.fromRGB(255, 220, 220), Muted = Color3.fromRGB(180, 100, 100) },
-    GreyBlack = { Base = Color3.fromRGB(10, 10, 10), Panel = Color3.fromRGB(20, 20, 20), Accent = Color3.fromRGB(180, 180, 180), Text = Color3.fromRGB(240, 240, 240), Muted = Color3.fromRGB(120, 120, 120) },
-    PinkGrey = { Base = Color3.fromRGB(20, 15, 18), Panel = Color3.fromRGB(35, 25, 30), Accent = Color3.fromRGB(255, 105, 180), Text = Color3.fromRGB(255, 230, 240), Muted = Color3.fromRGB(180, 130, 150) }
+    RedBlack = { Base = Color3.fromRGB(10, 2, 4), Panel = Color3.fromRGB(25, 5, 10), Glass = Color3.fromRGB(40, 10, 15), Text = Color3.fromRGB(255, 235, 240), Muted = Color3.fromRGB(180, 100, 120) },
+    GreyBlack = { Base = Color3.fromRGB(10, 10, 12), Panel = Color3.fromRGB(20, 20, 25), Glass = Color3.fromRGB(35, 35, 40), Text = Color3.fromRGB(240, 240, 240), Muted = Color3.fromRGB(140, 140, 140) },
+    PinkGrey = { Base = Color3.fromRGB(15, 10, 15), Panel = Color3.fromRGB(30, 20, 30), Glass = Color3.fromRGB(45, 30, 45), Text = Color3.fromRGB(255, 220, 240), Muted = Color3.fromRGB(200, 130, 170) }
 }
 
-local CurrentTheme = Themes[Config.Theme] or Themes.Default
-local AccentColor = CurrentTheme.Accent
+local ActiveTheme = Themes[Config.Theme]
 
 local Character = LocalPlayer.Character
 local HD = Character and Character:FindFirstChild("Humanoid")
 local HRP = Character and Character:FindFirstChild("HumanoidRootPart")
 
 local CurrentTween, Tweening, TpActive = nil, false, false
-local HoldCFrame, LiveHoldFn = nil, nil
 local NoclipOn, LastNoclipApply = false, 0
-local AttackModel, AttackStandFn, FightTarget = nil, nil, nil
-local SkillCoolDown = false
+local AttackModel = nil
 local StatusText = "Waiting..."
 
 local function GetCharacterParts()
@@ -155,7 +144,7 @@ local function _tp(targetPos, abortCheck)
     part.CFrame = myHRP.CFrame
     NoClip(true)
     
-    local tweenSpeed = Config.TweenSpeed
+    local tweenSpeed = 300
     if CurrentTween then pcall(function() CurrentTween:Cancel() end) CurrentTween = nil end
 
     local tween = nil
@@ -232,17 +221,6 @@ local function _tp(targetPos, abortCheck)
     return not aborted
 end
 
-local function Unseat()
-    HoldCFrame, LiveHoldFn = nil, nil
-    for _ = 1, 3 do
-        local _, hrp, hum = GetCharacterParts()
-        if not hum or (not hum.Sit and hum.SeatPart == nil) then return true end
-        StandUpFromSeat(hum.SeatPart, hum, hrp)
-        task.wait(0.2)
-    end
-    return false
-end
-
 local function Haki_Auto()
     if not Config.AutoBuso then return end
     if Character and HRP then
@@ -253,14 +231,8 @@ end
 local function Equip_Auto(Tool)
     if not Character or not HRP or not HD then return end
     if HD.Health > 0 and LocalPlayer:FindFirstChild("Backpack") then
-        if Tool == "Melee" or Tool == "Sword" or Tool == "Gun" or Tool == "Blox Fruit" then
-            for i, v in pairs(LocalPlayer.Backpack:GetChildren()) do
-                if v.ToolTip == Tool then HD:EquipTool(v) break end
-            end
-        else
-            for i, v in pairs(LocalPlayer.Backpack:GetChildren()) do
-                if v.Name == Tool then HD:EquipTool(v) break end
-            end
+        for i, v in pairs(LocalPlayer.Backpack:GetChildren()) do
+            if v.ToolTip == Tool or v.Name == Tool then HD:EquipTool(v) break end
         end
     end
 end
@@ -269,8 +241,6 @@ local function Attack_Auto()
     if not Character or not HRP or not HD then return end
     local tool = Character:FindFirstChildOfClass("Tool")
     if not tool then return end
-    local WT = tool:GetAttribute("WeaponType")
-    if WT ~= "Melee" and WT ~= "Sword" then return end
     
     local Net = RS:FindFirstChild("Modules") and RS.Modules:FindFirstChild("Net")
     if not Net then return end
@@ -306,27 +276,6 @@ local function Attack_Auto()
     end
 end
 
-local function CoolDown_Auto()
-    if SkillCoolDown or not Config.AutoLeviathanFull then return end
-    SkillCoolDown = true
-    pcall(function()
-        local skillsUI = LocalPlayer.PlayerGui.Main.Skills
-        for _, weapon in pairs(skillsUI:GetChildren()) do
-            for _, v in pairs(weapon:GetChildren()) do
-                if table.find({"Z", "X", "C", "V", "F"}, v.Name) then
-                    local cooldown = v:FindFirstChild("Cooldown")
-                    if cooldown and cooldown.Size == UDim2.new(0, 0, 1, -1) then
-                        VirtualInputManager:SendKeyEvent(true, v.Name:upper(), false, game)
-                        task.wait(0.1)
-                        VirtualInputManager:SendKeyEvent(false, v.Name:upper(), false, game)
-                    end
-                end
-            end
-        end
-    end)
-    SkillCoolDown = false
-end
-
 local function Leviathan_Find()
     local SeaBeasts = workspace:FindFirstChild("SeaBeasts")
     if not SeaBeasts then return nil, nil end
@@ -350,44 +299,15 @@ local function FightLeviathan()
                 _tp(root.Position + Vector3.new(0, 75, 0))
                 if not (Character and Character:FindFirstChildOfClass("Humanoid") and Character.Humanoid.Sit) then
                     Equip_Auto(Config.SelectWeapon)
-                    pcall(CoolDown_Auto)
                     if Config.FastAttack then pcall(Attack_Auto) end
                 end
                 Haki_Auto()
             else
-                StatusText = "Searching for Leviathan..."
+                StatusText = "Searching..."
                 task.wait(1)
             end
         end
     end)
-end
-
-local function UpdateCharacter()
-    Character = LocalPlayer.Character
-    HD = Character and Character:FindFirstChild("Humanoid")
-    HRP = Character and Character:FindFirstChild("HumanoidRootPart")
-end
-
-LocalPlayer.CharacterAdded:Connect(function()
-    task.wait(1)
-    UpdateCharacter()
-    Haki_Auto()
-end)
-
-local function ApplyVFX(state)
-    if state then
-        for _, v in pairs(game:GetDescendants()) do
-            if v:IsA("ParticleEmitter") or v:IsA("Trail") or v:IsA("Smoke") or v:IsA("Fire") then
-                v.Enabled = false
-            end
-        end
-        local lighting = game:GetService("Lighting")
-        lighting.GlobalShadows = false
-        lighting.FogEnd = 0
-        for _, v in pairs(lighting:GetDescendants()) do
-            if v:IsA("BlurEffect") or v:IsA("SunRaysEffect") then v.Enabled = false end
-        end
-    end
 end
 
 if game.CoreGui:FindFirstChild("RedstoneUI") then game.CoreGui.RedstoneUI:Destroy() end
@@ -406,154 +326,121 @@ local function Create(className, props, parent)
 end
 
 local MainFrame = Create("Frame", {
-    Size = UDim2.new(0, 520, 0, 380),
-    Position = UDim2.new(0.5, -260, 0.5, -190),
-    BackgroundColor3 = CurrentTheme.Base,
+    Size = UDim2.new(0, 600, 0, 380),
+    Position = UDim2.new(0.5, -300, 0.5, -190),
+    BackgroundColor3 = ActiveTheme.Base,
     BorderSizePixel = 0,
 }, ScreenGui)
+Create("UICorner", {CornerRadius = UDim.new(0, 16)}, MainFrame)
 
-Create("UICorner", {CornerRadius = UDim.new(0, 12)}, MainFrame)
-
-local Stroke = Create("UIStroke", {
+local MainStroke = Create("UIStroke", {
     Thickness = 1.5,
-    Color = AccentColor,
-    Transparency = 0.3,
-}, MainFrame)
-
-local Gradient = Create("UIGradient", {
-    Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0, CurrentTheme.Base),
-        ColorSequenceKeypoint.new(1, CurrentTheme.Panel),
-    }),
-    Rotation = 45,
+    Color = Config.AccentColor,
+    Transparency = 0.2,
 }, MainFrame)
 
 local TopBar = Create("Frame", {
-    Size = UDim2.new(1, 0, 0, 40),
-    BackgroundTransparency = 1,
+    Size = UDim2.new(1, 0, 0, 50),
+    BackgroundColor3 = ActiveTheme.Panel,
+    BackgroundTransparency = 0.5,
 }, MainFrame)
+Create("UICorner", {CornerRadius = UDim.new(0, 16)}, TopBar)
 
 local Logo = Create("Frame", {
-    Size = UDim2.new(0, 26, 0, 26),
-    Position = UDim2.new(0, 10, 0.5, -13),
-    BackgroundColor3 = AccentColor,
+    Size = UDim2.new(0, 30, 0, 30),
+    Position = UDim2.new(0, 15, 0.5, -15),
+    BackgroundColor3 = Config.AccentColor,
 }, TopBar)
-Create("UICorner", {CornerRadius = UDim.new(0, 6)}, Logo)
+Create("UICorner", {CornerRadius = UDim.new(0, 8)}, Logo)
 Create("TextLabel", {
     Size = UDim2.new(1, 0, 1, 0),
     BackgroundTransparency = 1,
-    Text = "RH",
-    TextColor3 = CurrentTheme.Text,
+    Text = "R",
+    TextColor3 = Color3.new(1,1,1),
     Font = Enum.Font.GothamBold,
-    TextSize = 14,
+    TextSize = 16,
 }, Logo)
 
 local Title = Create("TextLabel", {
-    Size = UDim2.new(0, 200, 0, 16),
-    Position = UDim2.new(0, 45, 0, 6),
+    Size = UDim2.new(0, 200, 1, 0),
+    Position = UDim2.new(0, 55, 0, 0),
     BackgroundTransparency = 1,
     Text = "REDSTONE HUB",
-    TextColor3 = AccentColor,
+    TextColor3 = ActiveTheme.Text,
     Font = Enum.Font.GothamBold,
-    TextSize = 13,
+    TextSize = 14,
     TextXAlignment = Enum.TextXAlignment.Left,
 }, TopBar)
 
-local SubTitle = Create("TextLabel", {
-    Size = UDim2.new(0, 200, 0, 14),
-    Position = UDim2.new(0, 45, 0, 20),
-    BackgroundTransparency = 1,
-    Text = "Compact Edition",
-    TextColor3 = CurrentTheme.Muted,
-    Font = Enum.Font.Gotham,
-    TextSize = 10,
-    TextXAlignment = Enum.TextXAlignment.Left,
-}, TopBar)
-
-local LayoutBtn = Create("TextButton", {
-    Size = UDim2.new(0, 26, 0, 26),
-    Position = UDim2.new(1, -70, 0.5, -13),
-    BackgroundColor3 = CurrentTheme.Panel,
-    Text = "↔",
-    TextColor3 = CurrentTheme.Text,
+local MinimizeBtn = Create("TextButton", {
+    Size = UDim2.new(0, 30, 0, 30),
+    Position = UDim2.new(1, -75, 0.5, -15),
+    BackgroundColor3 = ActiveTheme.Glass,
+    Text = "-",
+    TextColor3 = ActiveTheme.Text,
     Font = Enum.Font.GothamBold,
     TextSize = 14,
 }, TopBar)
-Create("UICorner", {CornerRadius = UDim.new(0, 6)}, LayoutBtn)
+Create("UICorner", {CornerRadius = UDim.new(0, 8)}, MinimizeBtn)
 
 local CloseBtn = Create("TextButton", {
-    Size = UDim2.new(0, 26, 0, 26),
-    Position = UDim2.new(1, -36, 0.5, -13),
-    BackgroundColor3 = CurrentTheme.Panel,
+    Size = UDim2.new(0, 30, 0, 30),
+    Position = UDim2.new(1, -40, 0.5, -15),
+    BackgroundColor3 = ActiveTheme.Glass,
     Text = "X",
-    TextColor3 = CurrentTheme.Text,
+    TextColor3 = ActiveTheme.Text,
     Font = Enum.Font.GothamBold,
     TextSize = 12,
 }, TopBar)
-Create("UICorner", {CornerRadius = UDim.new(0, 6)}, CloseBtn)
+Create("UICorner", {CornerRadius = UDim.new(0, 8)}, CloseBtn)
 
 local TabContainer = Create("Frame", {
-    Size = UDim2.new(1, -20, 0, 30),
-    Position = UDim2.new(0, 10, 0, 45),
-    BackgroundColor3 = CurrentTheme.Panel,
-    BackgroundTransparency = 0.5,
+    Size = UDim2.new(1, -30, 0, 35),
+    Position = UDim2.new(0, 15, 0, 60),
+    BackgroundTransparency = 1,
 }, MainFrame)
-Create("UICorner", {CornerRadius = UDim.new(0, 6)}, TabContainer)
-local TabLayout = Create("UIListLayout", {FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 4), HorizontalAlignment = Enum.HorizontalAlignment.Center}, TabContainer)
+Create("UIListLayout", {FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 8), HorizontalAlignment = Enum.HorizontalAlignment.Center}, TabContainer)
 
 local ContentContainer = Create("Frame", {
-    Size = UDim2.new(1, -20, 1, -85),
-    Position = UDim2.new(0, 10, 0, 80),
+    Size = UDim2.new(1, -30, 1, -110),
+    Position = UDim2.new(0, 15, 0, 100),
     BackgroundTransparency = 1,
 }, MainFrame)
-
-local ScrollFrame = Create("ScrollingFrame", {
-    Size = UDim2.new(1, 0, 1, 0),
-    BackgroundTransparency = 1,
-    ScrollBarThickness = 2,
-    ScrollBarImageColor3 = AccentColor,
-    CanvasSize = UDim2.new(0, 0, 0, 0),
-    AutomaticCanvasSize = Enum.AutomaticSize.Y,
-}, ContentContainer)
 
 local Pages = {}
 local CurrentPage = nil
 local TabButtons = {}
 
 local function UpdateTheme()
-    MainFrame.BackgroundColor3 = CurrentTheme.Base
-    Stroke.Color = AccentColor
-    Gradient.Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0, CurrentTheme.Base),
-        ColorSequenceKeypoint.new(1, CurrentTheme.Panel),
-    })
-    Logo.BackgroundColor3 = AccentColor
-    Title.TextColor3 = AccentColor
-    SubTitle.TextColor3 = CurrentTheme.Muted
-    LayoutBtn.BackgroundColor3 = CurrentTheme.Panel
-    CloseBtn.BackgroundColor3 = CurrentTheme.Panel
-    TabContainer.BackgroundColor3 = CurrentTheme.Panel
-    ScrollFrame.ScrollBarImageColor3 = AccentColor
+    MainFrame.BackgroundColor3 = ActiveTheme.Base
+    MainStroke.Color = Config.AccentColor
+    TopBar.BackgroundColor3 = ActiveTheme.Panel
+    Logo.BackgroundColor3 = Config.AccentColor
+    Title.TextColor3 = ActiveTheme.Text
+    MinimizeBtn.BackgroundColor3 = ActiveTheme.Glass
+    MinimizeBtn.TextColor3 = ActiveTheme.Text
+    CloseBtn.BackgroundColor3 = ActiveTheme.Glass
+    CloseBtn.TextColor3 = ActiveTheme.Text
     
     for _, btn in pairs(TabButtons) do
-        btn.BackgroundColor3 = CurrentTheme.Base
-        btn.TextColor3 = CurrentTheme.Muted
+        btn.BackgroundColor3 = ActiveTheme.Panel
+        btn.TextColor3 = ActiveTheme.Muted
         if btn == CurrentPage.Btn then
-            btn.BackgroundColor3 = AccentColor
-            btn.TextColor3 = CurrentTheme.Text
+            btn.BackgroundColor3 = Config.AccentColor
+            btn.TextColor3 = Color3.new(1,1,1)
         end
     end
     
     for _, page in pairs(Pages) do
         for _, v in pairs(page:GetDescendants()) do
             if v:IsA("Frame") and v:GetAttribute("IsSection") then
-                v.BackgroundColor3 = CurrentTheme.Panel
+                v.BackgroundColor3 = ActiveTheme.Panel
             elseif v:IsA("Frame") and v:GetAttribute("IsToggle") then
-                v.BackgroundColor3 = CurrentTheme.Panel
+                v.BackgroundColor3 = ActiveTheme.Glass
             elseif v:IsA("TextLabel") then
-                v.TextColor3 = CurrentTheme.Text
-            elseif v:IsA("Frame") and v:GetAttribute("IsAccent") then
-                v.BackgroundColor3 = AccentColor
+                v.TextColor3 = ActiveTheme.Text
+            elseif v:IsA("Frame") and v:GetAttribute("IsAccentLine") then
+                v.BackgroundColor3 = Config.AccentColor
             end
         end
     end
@@ -562,55 +449,39 @@ end
 local function SwitchPage(page)
     if CurrentPage then CurrentPage.Visible = false end
     for _, btn in pairs(TabButtons) do
-        btn.BackgroundColor3 = CurrentTheme.Base
-        btn.TextColor3 = CurrentTheme.Muted
+        btn.BackgroundColor3 = ActiveTheme.Panel
+        btn.TextColor3 = ActiveTheme.Muted
     end
     page.Visible = true
-    page.Btn.BackgroundColor3 = AccentColor
-    page.Btn.TextColor3 = CurrentTheme.Text
+    page.Btn.BackgroundColor3 = Config.AccentColor
+    page.Btn.TextColor3 = Color3.new(1,1,1)
     CurrentPage = page
+    
+    page.Position = UDim2.new(0, 0, 0, 10)
+    page.BackgroundTransparency = 1
+    TweenService:Create(page, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {
+        Position = UDim2.new(0, 0, 0, 0),
+        BackgroundTransparency = 1
+    }):Play()
 end
-
-local function SwitchLayout()
-    Config.HorizontalTabs = not Config.HorizontalTabs
-    if Config.HorizontalTabs then
-        TabContainer.Size = UDim2.new(1, -20, 0, 30)
-        TabContainer.Position = UDim2.new(0, 10, 0, 45)
-        TabLayout.FillDirection = Enum.FillDirection.Horizontal
-        ContentContainer.Size = UDim2.new(1, -20, 1, -85)
-        ContentContainer.Position = UDim2.new(0, 10, 0, 80)
-        LayoutBtn.Text = "↔"
-    else
-        TabContainer.Size = UDim2.new(0, 80, 1, -70)
-        TabContainer.Position = UDim2.new(0, 10, 0, 45)
-        TabLayout.FillDirection = Enum.FillDirection.Vertical
-        ContentContainer.Size = UDim2.new(1, -110, 1, -55)
-        ContentContainer.Position = UDim2.new(0, 100, 0, 45)
-        LayoutBtn.Text = "↕"
-    end
-end
-
-LayoutBtn.MouseButton1Click:Connect(SwitchLayout)
 
 local function CreatePage(name)
     local page = Create("Frame", {
-        Size = UDim2.new(1, 0, 0, 0),
-        AutomaticSize = Enum.AutomaticSize.Y,
+        Size = UDim2.new(1, 0, 1, 0),
         BackgroundTransparency = 1,
         Visible = false,
-    }, ScrollFrame)
-    Create("UIListLayout", {Padding = UDim.new(0, 8)}, page)
+    }, ContentContainer)
+    Create("UIListLayout", {Padding = UDim.new(0, 10)}, page)
     
     local tabBtn = Create("TextButton", {
-        Size = UDim2.new(0, 75, 1, -8),
-        BackgroundColor3 = CurrentTheme.Base,
-        BackgroundTransparency = 0.5,
+        Size = UDim2.new(0, 100, 1, 0),
+        BackgroundColor3 = ActiveTheme.Panel,
         Text = name,
-        TextColor3 = CurrentTheme.Muted,
+        TextColor3 = ActiveTheme.Muted,
         Font = Enum.Font.GothamBold,
-        TextSize = 11,
+        TextSize = 12,
     }, TabContainer)
-    Create("UICorner", {CornerRadius = UDim.new(0, 6)}, tabBtn)
+    Create("UICorner", {CornerRadius = UDim.new(0, 8)}, tabBtn)
     
     tabBtn.MouseButton1Click:Connect(function() SwitchPage(page) end)
     
@@ -626,28 +497,28 @@ local function CreateSection(parent, title)
     local sec = Create("Frame", {
         Size = UDim2.new(1, 0, 0, 0),
         AutomaticSize = Enum.AutomaticSize.Y,
-        BackgroundColor3 = CurrentTheme.Panel,
-        BackgroundTransparency = 0.2,
+        BackgroundColor3 = ActiveTheme.Panel,
+        BackgroundTransparency = 0.3,
     }, parent)
     sec:SetAttribute("IsSection", true)
-    Create("UICorner", {CornerRadius = UDim.new(0, 8)}, sec)
-    Create("UIPadding", {PaddingTop = UDim.new(0, 8), PaddingBottom = UDim.new(0, 8), PaddingLeft = UDim.new(0, 8), PaddingRight = UDim.new(0, 8)}, sec)
-    Create("UIListLayout", {Padding = UDim.new(0, 6)}, sec)
+    Create("UICorner", {CornerRadius = UDim.new(0, 10)}, sec)
+    Create("UIPadding", {PaddingTop = UDim.new(0, 10), PaddingBottom = UDim.new(0, 10), PaddingLeft = UDim.new(0, 10), PaddingRight = UDim.new(0, 10)}, sec)
+    Create("UIListLayout", {Padding = UDim.new(0, 8)}, sec)
     
     local header = Create("Frame", {
-        Size = UDim2.new(1, 0, 0, 18),
+        Size = UDim2.new(1, 0, 0, 20),
         BackgroundTransparency = 1,
     }, sec)
-    local accentLine = Create("Frame", {Size = UDim2.new(0, 3, 1, 0), BackgroundColor3 = AccentColor}, header)
-    accentLine:SetAttribute("IsAccent", true)
+    local line = Create("Frame", {Size = UDim2.new(0, 3, 1, 0), BackgroundColor3 = Config.AccentColor}, header)
+    line:SetAttribute("IsAccentLine", true)
     Create("TextLabel", {
         Size = UDim2.new(1, -10, 1, 0),
         Position = UDim2.new(0, 8, 0, 0),
         BackgroundTransparency = 1,
         Text = string.upper(title),
-        TextColor3 = CurrentTheme.Text,
+        TextColor3 = ActiveTheme.Text,
         Font = Enum.Font.GothamBold,
-        TextSize = 11,
+        TextSize = 12,
         TextXAlignment = Enum.TextXAlignment.Left,
     }, header)
     return sec
@@ -655,36 +526,36 @@ end
 
 local function CreateToggle(parent, text, default, callback)
     local frame = Create("Frame", {
-        Size = UDim2.new(1, 0, 0, 28),
-        BackgroundColor3 = CurrentTheme.Panel,
-        BackgroundTransparency = 0.5,
+        Size = UDim2.new(1, 0, 0, 30),
+        BackgroundColor3 = ActiveTheme.Glass,
+        BackgroundTransparency = 0.4,
     }, parent)
     frame:SetAttribute("IsToggle", true)
-    Create("UICorner", {CornerRadius = UDim.new(0, 6)}, frame)
+    Create("UICorner", {CornerRadius = UDim.new(0, 8)}, frame)
     
     Create("TextLabel", {
-        Size = UDim2.new(1, -50, 1, 0),
-        Position = UDim2.new(0, 8, 0, 0),
+        Size = UDim2.new(1, -60, 1, 0),
+        Position = UDim2.new(0, 10, 0, 0),
         BackgroundTransparency = 1,
         Text = text,
-        TextColor3 = CurrentTheme.Text,
+        TextColor3 = ActiveTheme.Text,
         Font = Enum.Font.Gotham,
-        TextSize = 11,
+        TextSize = 12,
         TextXAlignment = Enum.TextXAlignment.Left,
     }, frame)
     
     local toggleBtn = Create("TextButton", {
-        Size = UDim2.new(0, 32, 0, 16),
-        Position = UDim2.new(1, -40, 0.5, -8),
-        BackgroundColor3 = default and AccentColor or CurrentTheme.Base,
+        Size = UDim2.new(0, 36, 0, 18),
+        Position = UDim2.new(1, -46, 0.5, -9),
+        BackgroundColor3 = default and Config.AccentColor or ActiveTheme.Base,
         Text = "",
     }, frame)
     Create("UICorner", {CornerRadius = UDim.new(1, 0)}, toggleBtn)
     
     local knob = Create("Frame", {
-        Size = UDim2.new(0, 12, 0, 12),
-        Position = default and UDim2.new(1, -14, 0.5, -6) or UDim2.new(0, 2, 0.5, -6),
-        BackgroundColor3 = CurrentTheme.Text,
+        Size = UDim2.new(0, 14, 0, 14),
+        Position = default and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7),
+        BackgroundColor3 = Color3.new(1,1,1),
     }, toggleBtn)
     Create("UICorner", {CornerRadius = UDim.new(1, 0)}, knob)
     
@@ -692,10 +563,10 @@ local function CreateToggle(parent, text, default, callback)
     toggleBtn.MouseButton1Click:Connect(function()
         state = not state
         TweenService:Create(knob, TweenInfo.new(0.15), {
-            Position = state and UDim2.new(1, -14, 0.5, -6) or UDim2.new(0, 2, 0.5, -6)
+            Position = state and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7)
         }):Play()
         TweenService:Create(toggleBtn, TweenInfo.new(0.15), {
-            BackgroundColor3 = state and AccentColor or CurrentTheme.Base
+            BackgroundColor3 = state and Config.AccentColor or ActiveTheme.Base
         }):Play()
         if callback then callback(state) end
     end)
@@ -704,15 +575,15 @@ end
 
 local function CreateButton(parent, text, callback)
     local btn = Create("TextButton", {
-        Size = UDim2.new(1, 0, 0, 28),
-        BackgroundColor3 = CurrentTheme.Panel,
+        Size = UDim2.new(1, 0, 0, 30),
+        BackgroundColor3 = ActiveTheme.Glass,
         Text = text,
-        TextColor3 = CurrentTheme.Text,
+        TextColor3 = ActiveTheme.Text,
         Font = Enum.Font.GothamBold,
-        TextSize = 11,
+        TextSize = 12,
     }, parent)
     btn:SetAttribute("IsToggle", true)
-    Create("UICorner", {CornerRadius = UDim.new(0, 6)}, btn)
+    Create("UICorner", {CornerRadius = UDim.new(0, 8)}, btn)
     btn.MouseButton1Click:Connect(callback)
     return btn
 end
@@ -725,21 +596,22 @@ local OverlayGui = Create("ScreenGui", {
 }, game:GetService("CoreGui"))
 
 local OverlayFrame = Create("Frame", {
-    Size = UDim2.new(0, 280, 0, 70),
-    Position = UDim2.new(0.5, -140, 0, 10),
-    BackgroundColor3 = CurrentTheme.Base,
+    Size = UDim2.new(0, 260, 0, 70),
+    Position = UDim2.new(0.5, -130, 0, 15),
+    BackgroundColor3 = ActiveTheme.Base,
+    BackgroundTransparency = 0.2,
     BorderSizePixel = 0,
     Visible = false,
 }, OverlayGui)
-Create("UICorner", {CornerRadius = UDim.new(0, 8)}, OverlayFrame)
-Create("UIStroke", {Color = AccentColor, Thickness = 1}, OverlayFrame)
+Create("UICorner", {CornerRadius = UDim.new(0, 10)}, OverlayFrame)
+Create("UIStroke", {Color = Config.AccentColor, Thickness = 1}, OverlayFrame)
 
 Create("TextLabel", {
     Size = UDim2.new(0, 100, 0, 16),
-    Position = UDim2.new(0, 10, 0, 4),
+    Position = UDim2.new(0, 10, 0, 5),
     BackgroundTransparency = 1,
-    Text = "STATUS",
-    TextColor3 = CurrentTheme.Muted,
+    Text = "LEVIATHAN STATUS",
+    TextColor3 = ActiveTheme.Muted,
     Font = Enum.Font.GothamBold,
     TextSize = 9,
     TextXAlignment = Enum.TextXAlignment.Left,
@@ -747,10 +619,10 @@ Create("TextLabel", {
 
 local StatusLabel = Create("TextLabel", {
     Size = UDim2.new(1, -20, 0, 16),
-    Position = UDim2.new(0, 10, 0, 18),
+    Position = UDim2.new(0, 10, 0, 20),
     BackgroundTransparency = 1,
     Text = StatusText,
-    TextColor3 = AccentColor,
+    TextColor3 = Config.AccentColor,
     Font = Enum.Font.GothamBold,
     TextSize = 12,
     TextXAlignment = Enum.TextXAlignment.Left,
@@ -758,10 +630,10 @@ local StatusLabel = Create("TextLabel", {
 
 Create("TextLabel", {
     Size = UDim2.new(0, 100, 0, 14),
-    Position = UDim2.new(0, 10, 0, 40),
+    Position = UDim2.new(0, 10, 0, 42),
     BackgroundTransparency = 1,
     Text = "Players: " .. #Players:GetPlayers(),
-    TextColor3 = CurrentTheme.Text,
+    TextColor3 = ActiveTheme.Text,
     Font = Enum.Font.Gotham,
     TextSize = 9,
     TextXAlignment = Enum.TextXAlignment.Left,
@@ -769,18 +641,18 @@ Create("TextLabel", {
 
 local PingLabel = Create("TextLabel", {
     Size = UDim2.new(0, 100, 0, 14),
-    Position = UDim2.new(0, 90, 0, 40),
+    Position = UDim2.new(0, 90, 0, 42),
     BackgroundTransparency = 1,
     Text = "Ping: " .. math.floor(LocalPlayer:GetNetworkPing() * 1000) .. "ms",
-    TextColor3 = CurrentTheme.Text,
+    TextColor3 = ActiveTheme.Text,
     Font = Enum.Font.Gotham,
     TextSize = 9,
     TextXAlignment = Enum.TextXAlignment.Left,
 }, OverlayFrame)
 
 local LeviPage = CreatePage("Leviathan")
-local MainSec = CreateSection(LeviPage, "Auto Levi")
-CreateToggle(MainSec, "Auto Leviathan Full", false, function(state)
+local MainSec = CreateSection(LeviPage, "Main")
+CreateToggle(MainSec, "Auto Leviathan", false, function(state)
     Config.AutoLeviathanFull = state
     OverlayFrame.Visible = state
     if state then FightLeviathan() end
@@ -788,7 +660,7 @@ end)
 CreateButton(MainSec, "Teleport to Tiki", function() _tp(CFrame.new(-16204, 9, 479)) end)
 
 local CombatPage = CreatePage("Combat")
-local CombatSec = CreateSection(CombatPage, "Settings")
+local CombatSec = CreateSection(CombatPage, "Combat Settings")
 CreateToggle(CombatSec, "Fast Attack", false, function(state) Config.FastAttack = state end)
 CreateToggle(CombatSec, "Silent Aim", true, function(state) Config.SilentAim = state end)
 
@@ -800,10 +672,14 @@ CreateToggle(MiscSec, "Auto V3", false, function(state) Config.AutoV3 = state en
 CreateToggle(MiscSec, "Auto V4", false, function(state) Config.AutoV4 = state end)
 
 local MiscPerfSec = CreateSection(MiscPage, "Performance")
-CreateToggle(MiscPerfSec, "Auto Fast Mode", false, function(state) Config.AutoFastMode = state end)
-CreateToggle(MiscPerfSec, "Disable VFX", false, function(state) Config.DisableVFX = state ApplyVFX(state) end)
+CreateToggle(MiscPerfSec, "Disable VFX", false, function(state)
+    if state then
+        for _, v in pairs(game:GetDescendants()) do
+            if v:IsA("ParticleEmitter") or v:IsA("Trail") then v.Enabled = false end
+        end
+    end
+end)
 CreateToggle(MiscPerfSec, "White Screen", false, function(state)
-    Config.WhiteScreen = state
     if state then
         game:GetService("RunService"):Set3dRenderingEnabled(false)
         Create("Frame", {Size = UDim2.new(1,0,1,0), BackgroundColor3 = Color3.new(1,1,1), Parent = ScreenGui})
@@ -814,51 +690,37 @@ CreateToggle(MiscPerfSec, "White Screen", false, function(state)
         end
     end
 end)
-CreateToggle(MiscPerfSec, "Potato Mode", false, function(state)
-    Config.PotatoMode = state
-    if state then
-        Config.DisableVFX = true
-        Config.WhiteScreen = true
-        ApplyVFX(true)
-        game:GetService("RunService"):Set3dRenderingEnabled(false)
-        Create("Frame", {Size = UDim2.new(1,0,1,0), BackgroundColor3 = Color3.new(1,1,1), Parent = ScreenGui})
-    end
-end)
 
 local ThemePage = CreatePage("Theme")
-local ThemeSec = CreateSection(ThemePage, "Select Theme")
+local ThemeSec = CreateSection(ThemePage, "Themes")
 local themeNames = {"RedBlack", "GreyBlack", "PinkGrey"}
 local themeIndex = 1
-local themeBtn = CreateButton(ThemeSec, "Current: " .. Config.Theme, function()
+local themeBtn = CreateButton(ThemeSec, "Theme: " .. Config.Theme, function()
     themeIndex = themeIndex % #themeNames + 1
     Config.Theme = themeNames[themeIndex]
-    CurrentTheme = Themes[Config.Theme]
-    themeBtn.Text = "Current: " .. Config.Theme
+    ActiveTheme = Themes[Config.Theme]
+    themeBtn.Text = "Theme: " .. Config.Theme
     UpdateTheme()
 end)
 
-local ColorSec = CreateSection(ThemePage, "Color Wheel (Accent)")
+local ColorSec = CreateSection(ThemePage, "Custom Accent")
 local ColorInput = Create("TextBox", {
-    Size = UDim2.new(1, 0, 0, 28),
-    BackgroundColor3 = CurrentTheme.Panel,
+    Size = UDim2.new(1, 0, 0, 30),
+    BackgroundColor3 = ActiveTheme.Glass,
     Text = "255, 30, 80",
-    TextColor3 = CurrentTheme.Text,
+    TextColor3 = ActiveTheme.Text,
     Font = Enum.Font.Gotham,
-    TextSize = 11,
+    TextSize = 12,
     PlaceholderText = "R, G, B",
 }, ColorSec)
-Create("UICorner", {CornerRadius = UDim.new(0, 6)}, ColorInput)
+Create("UICorner", {CornerRadius = UDim.new(0, 8)}, ColorInput)
 CreateButton(ColorSec, "Apply Color", function()
     local r, g, b = string.match(ColorInput.Text, "(%d+),%s*(%d+),%s*(%d+)")
     if r and g and b then
-        AccentColor = Color3.fromRGB(tonumber(r), tonumber(g), tonumber(b))
+        Config.AccentColor = Color3.fromRGB(tonumber(r), tonumber(g), tonumber(b))
         UpdateTheme()
     end
 end)
-
-local ConfigPage = CreatePage("Config")
-local CfgSec = CreateSection(ConfigPage, "Settings")
-CreateButton(CfgSec, "Reload UI", function() ScreenGui:Destroy() loadstring(game:HttpGet("https://raw.githubusercontent.com/locoplayz01-source/RedStoneHub/main/main.lua"))() end)
 
 task.spawn(function()
     while task.wait(1) do
@@ -886,25 +748,26 @@ game:GetService("UserInputService").InputChanged:Connect(function(input)
 end)
 
 CloseBtn.MouseButton1Click:Connect(function()
-    Config.Minimized = not Config.Minimized
-    if Config.Minimized then
+    ScreenGui.Enabled = false
+end)
+
+MinimizeBtn.MouseButton1Click:Connect(function()
+    if MainFrame.Size == UDim2.new(0, 600, 0, 380) then
         MainFrame.Size = UDim2.new(0, 40, 0, 40)
         TopBar.Size = UDim2.new(1, 0, 1, 0)
-        Logo.Position = UDim2.new(0.5, -13, 0.5, -13)
+        Logo.Position = UDim2.new(0.5, -15, 0.5, -15)
         Title.Visible = false
-        SubTitle.Visible = false
-        LayoutBtn.Visible = false
-        CloseBtn.Position = UDim2.new(1, -20, 0, 0)
+        MinimizeBtn.Visible = false
+        CloseBtn.Position = UDim2.new(1, -25, 0, 5)
         TabContainer.Visible = false
         ContentContainer.Visible = false
     else
-        MainFrame.Size = UDim2.new(0, 520, 0, 380)
-        TopBar.Size = UDim2.new(1, 0, 0, 40)
-        Logo.Position = UDim2.new(0, 10, 0.5, -13)
+        MainFrame.Size = UDim2.new(0, 600, 0, 380)
+        TopBar.Size = UDim2.new(1, 0, 0, 50)
+        Logo.Position = UDim2.new(0, 15, 0.5, -15)
         Title.Visible = true
-        SubTitle.Visible = true
-        LayoutBtn.Visible = true
-        CloseBtn.Position = UDim2.new(1, -36, 0.5, -13)
+        MinimizeBtn.Visible = true
+        CloseBtn.Position = UDim2.new(1, -40, 0.5, -15)
         TabContainer.Visible = true
         ContentContainer.Visible = true
     end
